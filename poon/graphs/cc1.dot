@@ -1,0 +1,8 @@
+digraph {
+  p [texlbl="$\times$"];
+  l [image="case4.png", label="Leaf"];
+  r [image="case1.png", label="Recurse"];
+
+  p -> l;
+  p -> r;
+}

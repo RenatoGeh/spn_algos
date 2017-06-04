@@ -92,7 +92,7 @@
 
 \newcommand{\code}[1]{\lstinline[mathescape=true]{#1}}
 \newcommand{\mcode}[1]{\lstinline[mathescape]!#1!}
-
+\newcommand{\dset}[1]{\mathcal{#1}}
 
 \title{%
   \noindent\rule{13cm}{1.0pt}\\
@@ -191,15 +191,165 @@ that we have $\lceil (x_1-x_0)/r\rceil + \lceil (y_1-y_0)/r\rceil$ possible regi
 The structure algorithm is recursive. It takes as parameters a sum node $S$ as root of the SPN, the
 $ (x_0,y_0)$ top-left position of the subregion $S$ relative to the original complete image, the
 $ (x_1,y_1)$ bottom-right position of the subregion $S$, the resolution granularity step $k$ and a
-dataset $\mathcal{D}$ where $\mathcal{D}[X]$ is the set of instances of variable $X$.
+dataset $\dset{D}$ where $\dset{D}[X]$ is the set of instances of variable $X$.
+
+Let's define a few helper functions before we see the algorithm. Since we are dealing with an image
+divided into $k\times k$ regions, we must assume that a rectangular $k\times k$ collection of
+pixels is the atomic unit for our leaves. From the definition of SPNs, a leaf of an SPN is a
+univariate distribution. Therefore, we must consider our leaves as a univariate distribution over
+a set of pixels of an image region. Before we go into how we're going to deal with leaves, let's
+define what the surface area of a rectangular region is given a $k$ resolution.
+
+\begin{definition}[Surface area] The surface area of an image given a resolution $k$ is the surface
+  area divided by $k$. Let $S$ be the regular surface area. We'll use the following notation
+  $S^k = S/k$.
+\end{definition}
+
+Since we're mainly dealing with rectangular regions, we can use the following function:
 
 \begin{algorithm}[H]
-  \caption{\code{GenerateDenseSPN}}\label{alg:structure}
+  \caption{\mcode{Area$(p, q, k)$}}\label{alg:area}
   \begin{algorithmic}[1]
-    \Require\,Root sum node $S$
-    \Require\,Top-left position $p_0= (x_0,y_0)$ of the underlying image area of $S$
-    \Require\,Bottom-right position $p_1= (x_1,y_1)$ of the underlying image area of $S$
-    \Ensure\,A dense SPN structure
+    \Require\,Top-left position $p = (x, y)$.
+    \Require\,Bottom-right position $q = (x, y)$.
+    \Require\,Resolution $k$.
+    \Ensure\,$S^k$
+    \State\,\textbf{return} $\lceil\frac{(p.x - q.x)\cdot (p.y - q.y)}{k}\rceil$
+  \end{algorithmic}
+\end{algorithm}
+
+We are now going to make a strong assumption about our images. Let $w$ and $h$ be the width and
+height of all images respectively. We're going to assume, to simplify our algorithm, that $w$ and
+$h$ are both multiples of $k$. Having said that, we have $w/k$ and $h/k$ region partitions on the
+$x$-axis and $y$-axis respectively. Had we considered the general case in which we have any $w,h\in
+\mathbb{Z}$, we would then have $w \mod k$ and $h \mod k$ left-over corner case regions we would
+have to take into account.
+
+Now that we have a function \mcode{Area} to compute the surface area of a region given a resolution
+$k$, we can start thinking of how we're going to build the algorithm. From the overview section, we
+saw that we need to keep decomposing our image until we hit a base case, in which case we would
+then create a leaf and build a univariate distribution over the pixels in that base case region.
+But how do we decide when we have reached that point? Well, since a region can be no bigger than a
+$k\times k$ region, then it is reasonable to assume that our atomic unit is the $k\times k$ square.
+
+From this assumption, we can consider the following function that takes a rectangular region's
+top-left and bottom-right positions and dataset $\dset{D}$:
+
+\begin{algorithm}[H]
+  \caption{\mcode{NewLeaf$(p, q, \dset{D})$}}\label{alg:new-leaf}
+  \begin{algorithmic}[1]
+    \Require\,Top-left position $p= (x,y)$
+    \Require\,Bottom-right position $q= (x,y)$
+    \Require\,Resolution $k$
+    \Require\,Dataset $\dset{D}$ containing instances of variable set $\mathbf{X}$
+    \Ensure\,A univariate distribution over pixels in the rectangular region $(p,q)$
+    \State\,$\mathcal{X}=\{X\in\mathbf{X}|X\text{ is inside the rectangular region }(p, q)\}$
+    \State\,Let $p$ be an array containing the frequencies of each possible variable instantiation
+      where $p[i]$ is equivalent to the frequency of all $X\in\mathcal{X}$ such that $X=i$
+    \For{each instantiation with $X=x\in\dset{D}$ such that $X$ is also in $\mathcal{X}$}
+      \State\,Increment $p[x]$
+    \EndFor%
+    \State\,\textbf{return} \mcode{Leaf$(p, |\mathcal{X}|)$}
+  \end{algorithmic}
+\end{algorithm}
+
+Note that we are compressing a rectangular region $k\times k$ into a single $k$-sized pixel. When
+$k=1$, \mcode{NewLeaf} will create a univariate distribution over each pixel, taking into account
+all instantiations in the dataset $\dset{D}$.
+
+We now have the base case figured. Generating the rest of the structure is straightforward. For
+each axis, we recurse over the $k$ separated regions, creating two sum nodes for the subregion
+pairings. If we were to implement this method without much thinking, we would end up creating
+redundancies that could impact performance. Consider the following cases:
+
+\begin{algorithm}[H]
+  \caption{\mcode{GenerateDenseSPN$(k, p_0, p_1, \dset{D})$}}\label{alg:structure}
+  \begin{algorithmic}[1]
+    \Require\,Region resolution $k$
+    \Require\,Top-left position $p_0= (x,y)$ of the underlying image area
+    \Require\,Bottom-right position $p_1= (x,y)$ of the underlying image area
+    \Require\,Dataset $\dset{D}$ containing instances of variable set $\mathbf{X}$
+    \Ensure\,A dense SPN structure created from dataset $\dset{D}$
+    \State\,n $\gets$ $\lceil\frac{p_1.x-p_0.x}{k}\rceil$
+    \State\,m $\gets$ $\lceil\frac{p_1.y-p_0.y}{k}\rceil$
+    \State\,$S$ $\gets$ \mcode{NewSum$()$}
+    \State\,$q \gets (p_0.x, p_1.y)$
+    \If{$n>1$}
+      \For{$i\gets 1$ to $n$}
+        \State\,$q \gets (\min\{p_1.x, q.x + k\}, p_1.y)$
+        \State\,$r \gets (q.x, p_0.y)$
+        \State\,$\Pi \gets$ \mcode{NewProduct$()$}
+        \State\,Let $c_1$ and $c_2$ be children of $\Pi$
+        \State\,$a_1 \gets$ \mcode{Area$(p_0, q, k)$}
+        \State\,$a_2 \gets$ \mcode{Area$(r, p_1, k)$}
+        \If{$a_1 = 1$}
+          \State\,$c_1 \gets$ \mcode{NewLeaf$(p_0, q, \dset{D})$}
+        \ElsIf{$a_1 = 2$}
+          \State\,$c_1 \gets$ \mcode{NewProduct$()$}
+          \State\,$\hat{c}_1 \gets$ \mcode{NewLeaf$(p_0, p_0+(k, k), \dset{D})$}
+          \State\,$\hat{c}_2 \gets$ \mcode{NewLeaf$(p_0+(k, 0), q, \dset{D})$}
+          \State\,\mcode{$c_1$.AddChildren$(\hat{c}_1, \hat{c}_2)$}
+        \Else%
+          \State\,$c_1 \gets$ \mcode{GenerateDenseSPN$(k, p_0, q, \dset{D})$}
+        \EndIf%
+        \State\,\mcode{$\Pi$.AddChild$(c_1)$}
+        \If{$a_2 = 1$}
+          \State\,$c_2 \gets$ \mcode{NewLeaf$(r, p_1, \dset{D})$}
+        \ElsIf{$a_2 = 2$}
+          \State\,$c_2 \gets$ \mcode{NewProduct$()$}
+          \State\,$\hat{c}_1 \gets$ \mcode{NewLeaf$(r, r+(k, k), \dset{D})$}
+          \State\,$\hat{c}_2 \gets$ \mcode{NewLeaf$(r+(k, 0), p_1, \dset{D})$}
+          \State\,\mcode{$c_2$.AddChildren$(\hat{c}_1, \hat{c}_2)$}
+        \Else%
+          \State\,$c_2 \gets$ \mcode{GenerateDenseSPN$(k, r, p_1, \dset{D})$}
+        \EndIf%
+        \State\,\mcode{$\Pi$.AddChild$(c_2)$}
+        \State\,\mcode{$S$.AddChild$(\Pi, 1/n)$}
+      \EndFor%
+    \EndIf%
+    \algstore{alg:structure}
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+  \caption*{\mcode{GenerateDenseSPN} (continued)}
+  \begin{algorithmic}[1]
+    \algrestore{alg:structure}
+    \State\,$q \gets (p_1.x, p_0.y)$
+    \If{$m > 1$}
+      \For{$j \gets 1$ to $m$}
+        \State\,$q \gets (p_1.x, \min\{p_1.y, q.y + k\})$
+        \State\,$r \gets (p_0.x, q.y)$
+        \State\,$\Pi \gets$ \mcode{NewProduct$()$}
+        \State\,Let $c_1$ and $c_2$ be children of $\Pi$
+        \State\,$a_1 \gets$ \mcode{Area$(p_0, q, k)$}
+        \State\,$a_2 \gets$ \mcode{Area$(r, p_1, k)$}
+        \If{$a_1 = 1$}
+          \State\,$c_1 \gets$ \mcode{NewLeaf$(p_0, q, \dset{D})$}
+        \ElsIf{$a_1 = 2$}
+          \State\,$c_1 \gets$ \mcode{NewProduct$()$}
+          \State\,$\hat{c}_1 \gets$ \mcode{NewLeaf$(p_0, p_0+(k, k), \dset{D})$}
+          \State\,$\hat{c}_2 \gets$ \mcode{NewLeaf$(p_0+(0, k), q, \dset{D})$}
+          \State\,\mcode{$c_1$.AddChildren$(\hat{c}_1, \hat{c}_2)$}
+        \Else%
+          \State\,$c_1 \gets$ \mcode{GenerateDenseSPN$(k, p_0, q, \dset{D})$}
+        \EndIf%
+        \State\,\mcode{$\Pi$.AddChild$(c_1)$}
+        \If{$a_2 = 1$}
+          \State\,$c_2 \gets$ \mcode{NewLeaf$(r, p_1, \dset{D})$}
+        \ElsIf{$a_2 = 2$}
+          \State\,$c_2 \gets$ \mcode{NewProduct$()$}
+          \State\,$\hat{c}_1 \gets$ \mcode{NewLeaf$(r, r+(k, k), \dset{D})$}
+          \State\,$\hat{c}_2 \gets$ \mcode{NewLeaf$(r+(0, k), p_1, \dset{D})$}
+          \State\,\mcode{$c_2$.AddChildren$(\hat{c}_1, \hat{c}_2)$}
+        \Else%
+          \State\,$c_2 \gets$ \mcode{GenerateDenseSPN$(k, r, p_1, \dset{D})$}
+        \EndIf%
+        \State\,\mcode{$\Pi$.AddChild$(c_2)$}
+        \State\,\mcode{$S$.AddChild$(\Pi, 1/m)$}
+      \EndFor%
+    \EndIf%
+    \State\,\textbf{return} $S$
   \end{algorithmic}
 \end{algorithm}
 
