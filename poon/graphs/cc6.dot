@@ -1,0 +1,10 @@
+digraph {
+  p [label=<&times;>, shape=circle];
+  l [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
+  cellborder="0"><tr><td><img src="case3.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
+  r [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
+  cellborder="0"><tr><td><img src="case9.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
+
+  p -> l;
+  p -> r;
+}

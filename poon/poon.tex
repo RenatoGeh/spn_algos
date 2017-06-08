@@ -8,10 +8,9 @@
 \usepackage{thmtools,thm-restate}
 \usepackage{amsfonts}
 \usepackage{hyperref}
-\usepackage[singlelinecheck=false]{caption}
 \usepackage[backend=biber,url=true,doi=true,eprint=false,style=alphabetic]{biblatex}
 \usepackage{enumitem}
-\usepackage[justification=centering]{caption}
+\usepackage[justification=centering,singlelinecheck=false]{caption}
 \usepackage{indentfirst}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
@@ -26,7 +25,6 @@
 \usetikzlibrary{snakes,arrows,shapes}
 
 \addbibresource{references.bib}
-\graphicspath{{imgs/}}
 
 \makeatletter
 \def\subsection{\@startsection{subsection}{3}%
@@ -135,7 +133,7 @@ that indicates how fine the granularity is for the architecture.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[scale=1.0]{dv_spn.png}
+  \includegraphics[scale=1.0]{imgs/dv_spn.png}
   \captionsetup{justification=raggedright}
   \caption{The Poon architecture with $r = 1$ resolution. At each product node division, we
   consider an $r$ length division on each axis. Since $r=1$ in this case, we have $3$ product
@@ -261,6 +259,48 @@ We now have the base case figured. Generating the rest of the structure is strai
 each axis, we recurse over the $k$ separated regions, creating two sum nodes for the subregion
 pairings. If we were to implement this method without much thinking, we would end up creating
 redundancies that could impact performance. Consider the following cases:
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc1.png}
+    \caption{\label{fig:basey-1}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc4.png}
+    \caption{\label{fig:basey-2}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc5.png}
+    \caption{\label{fig:basey-2}}
+  \end{subfigure}
+  \captionsetup{justification=raggedright}
+  \caption{Special cases for the $y$-axis. Note how in both first cases the newly created sum node
+  on the right has only one edge with weight $1$. This sum node is redundant and the SPN can be
+  simplified by removing the sum node and adding its children as children of the parent product
+  node. The far right case occurs when there are only two $k$ regions on the $y$-axis.}
+\end{figure}
+
+
+
+\begin{figure}[h]
+  \centering
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc2.png}
+    \caption{\label{fig:basex-1}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc3.png}
+    \caption{\label{fig:basex-2}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.3\linewidth}
+    \centering\includegraphics[scale=0.3]{graphs/cc6.png}
+    \caption{\label{fig:basex-2}}
+  \end{subfigure}
+  \captionsetup{justification=raggedright}
+  \caption{Special cases for the $x$-axis. Just like the $y$-axis, there is a redundant sum node
+  with weight $1$ that can be removed and the SPN simplified in the two first cases.}
+\end{figure}
 
 \begin{algorithm}[H]
   \caption{\mcode{GenerateDenseSPN$(k, p_0, p_1, \dset{D})$}}\label{alg:structure}

@@ -1,15 +1,15 @@
 digraph {
   p [label=<&times;>, shape=circle];
   l [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
-  cellborder="0"><tr><td><img src="case4.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
+  cellborder="0"><tr><td><img src="case11.png"/></td></tr><tr><td>Recurse</td></tr></table>>];
   r [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
-  cellborder="0"><tr><td><img src="case1.png"/></td></tr><tr><td>Recurse</td></tr></table>>];
+  cellborder="0"><tr><td><img src="case12.png"/></td></tr><tr><td>Recurse</td></tr></table>>];
 
   cp [label=<&times;>, shape=circle];
   cl [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
-  cellborder="0"><tr><td><img src="case2.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
+  cellborder="0"><tr><td><img src="case13.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
   cr [margin=0 shape=none, style=filled, fillcolor=white, color=black, label=<<table border="0"
-  cellborder="0"><tr><td><img src="case5.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
+  cellborder="0"><tr><td><img src="case14.png"/></td></tr><tr><td>Leaf</td></tr></table>>];
 
   p -> l;
   p -> r;
