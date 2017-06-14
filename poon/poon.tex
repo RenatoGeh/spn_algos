@@ -278,29 +278,49 @@ redundancies that could impact performance. Consider the following cases:
   \caption{Special cases for the $y$-axis. Note how in both first cases the newly created sum node
   on the right has only one edge with weight $1$. This sum node is redundant and the SPN can be
   simplified by removing the sum node and adding its children as children of the parent product
-  node. The far right case occurs when there are only two $k$ regions on the $y$-axis.}
+  node. The far right case occurs when there are only two $k$ regions on the $y$-axis.}\label{fig:basey}
 \end{figure}
 
-
+These sub-SPNs showcase the three possible situations in which we may create a leaf node. Although
+they refer to the $y$-axis, we can easily conclude the same for the $x$-axis, as
+\autoref{fig:basex} illustrates. Note how in~\autoref{fig:basey-1} and~\autoref{fig:basey-2}, after
+we recurse through the $1\times 2$ $k$-sized rectangles, we end up with a sum node that has only
+one child. This creates a redundancy, as the value of the sum node would be the same as replacing
+the sum node in question with its only child. We take this case into account in our algorithm,
+watching for $2\times 1$ rectangles for the $x$-axis and $1\times 2$ rectangles for the $y$-axis.
 
 \begin{figure}[h]
   \centering
   \begin{subfigure}[b]{0.3\linewidth}
-    \centering\includegraphics[scale=0.3]{graphs/cc2.png}
+    \centering\includegraphics[scale=0.35]{graphs/cc2.png}
     \caption{\label{fig:basex-1}}
   \end{subfigure}
   \begin{subfigure}[b]{0.3\linewidth}
-    \centering\includegraphics[scale=0.3]{graphs/cc3.png}
+    \centering\includegraphics[scale=0.35]{graphs/cc3.png}
     \caption{\label{fig:basex-2}}
   \end{subfigure}
   \begin{subfigure}[b]{0.3\linewidth}
-    \centering\includegraphics[scale=0.3]{graphs/cc6.png}
+    \centering\includegraphics[scale=0.35]{graphs/cc6.png}
     \caption{\label{fig:basex-2}}
   \end{subfigure}
   \captionsetup{justification=raggedright}
   \caption{Special cases for the $x$-axis. Just like the $y$-axis, there is a redundant sum node
-  with weight $1$ that can be removed and the SPN simplified in the two first cases.}
+  with weight $1$ that can be removed and the SPN simplified in the two first cases. The third case
+  illustrates the base case when there are only two $k$-sized rectangles placed horizontally.}\label{fig:basex}
 \end{figure}
+
+Now that we have our special base cases figured out, we can start building our algorithm. We will
+divide our algorithm into two parts. In one we iterate through all possible $k$-resolution regions
+that are $x$-aligned. For each of these regions, we check for the special cases mentioned above. If
+none of those occur in our current region, then we recurse. In the other we do the same, but with
+the $y$-axis. Each of these two parts should return two product nodes that can be interpreted as a
+partitioning of the image into each axis regions. We then create a sum node and add the two
+resulting product nodes as children. This sum node is the SPN of the image.
+
+Note how this algorithm always creates two children for sum nodes and a decreasing number of
+children for product nodes at each layer. Furthermore, the number of layers of the SPN is fixed
+according to the size of the image. We also pre-initialized the weights of sum nodes to a uniform
+distribution.
 
 \begin{algorithm}[H]
   \caption{\mcode{GenerateDenseSPN$(k, p_0, p_1, \dset{D})$}}\label{alg:structure}
@@ -393,6 +413,7 @@ redundancies that could impact performance. Consider the following cases:
   \end{algorithmic}
 \end{algorithm}
 
+The actual code is available at \url{https://github.com/RenatoGeh/gospn}.
 
 %--------------------------------------------------------------------------------------------------
 
