@@ -1,0 +1,57 @@
+digraph {
+  node [shape=circle];
+  splines=false;
+  graph [ranksep=1];
+
+  subgraph cluster_R {
+    rank="same";
+    r1 [label="+"];
+    r2 [label="+"];
+    r3 [label="+"];
+    r4 [label="+"];
+    label="R";
+    graph [style=solid];
+  }
+
+  subgraph cluster_P {
+    rank="same"
+    p1 [label=<&times;>];
+    pi [label="...", shape=none];
+    p2 [label=<&times;>];
+    pn1 [label=<&times;>];
+    pn [label=<&times;>];
+    graph [style=dotted];
+    label = <&Pi;>;
+  }
+
+  subgraph cluster_R1 {
+    rank="same";
+    r11 [label=<+>];
+    r12 [label=<+>];
+    r13 [label=<+>];
+    r14 [label=<+>];
+    label=<R<sub>1</sub>>;
+    graph [style=solid];
+  }
+
+  subgraph cluster_R2 {
+    rank="same";
+    r21 [label=<+>];
+    r22 [label=<+>];
+    r23 [label=<+>];
+    r24 [label=<+>];
+    label=<R<sub>2</sub>>;
+    graph [style=solid];
+  }
+
+  {r1;r2;r3;r4} -> p1;
+  {r1;r2;r3;r4} -> p2;
+  {r1;r2;r3;r4} -> pn1;
+  {r1;r2;r3;r4} -> pn;
+
+  p1 -> {r11;r21};
+  p2 -> {r11;r22};
+  pi -> {r12;r22} [style=invis];
+  pn1 -> {r14;r23};
+  pn -> {r14;r24};
+}
