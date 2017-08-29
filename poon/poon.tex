@@ -229,7 +229,7 @@ find what region a number represents. We define the inverse function of $f$ belo
   $r\in\mathbb{Z}_{m^2n^2}$ into a tuple $(x_1,y_1,x_2,y_2)\in\mathbb{Z}_m\times\mathbb{Z}_n\times
   \mathbb{Z}_m\mathbb{Z}_n$. Let $g=f^{-1}$. We define $g$ as an algorithm as follows
   \begin{algorithm}[H]
-    \caption{\normalfont{Function $g=f^{-1}$}}
+    \caption{\normalfont{Function \code{Encode}$\defeq f^{-1} = g$}}
     \begin{algorithmic}[1]
       \normalfont%
       \Require\,$r\in\mathbb{Z}_{m^2n^2}$
@@ -245,6 +245,97 @@ find what region a number represents. We define the inverse function of $f$ belo
     \end{algorithmic}
   \end{algorithm}
 \end{definition}
+
+\subsection{Structural algorithm}
+
+We now show how to construct the Poon-Domingos architecture given an image $I$ (which is equivalent
+to a Region consisting of the entire image), resolution $r$ and $m$ sum nodes per region.
+
+The algorithm, as summarized in the last subsection, can be constructed recursively. However we
+avoid this technique in favor of an iterative version, which uses less memory. We must first do a
+preprocessing of Regions. We iterate over all possible subrectangles in $I$, create a Region for
+each of them and assign an identification number to it. This number is the value of the region map
+function given the region's position. We name the region map function as \code{Encode} that takes a
+region position and returns a non-negative integer. Similarly, we name the inverse function of
+\code{Encode} as \code{Decode} that takes a non-negative integer and returns a region position.
+
+We denote by $[\region{R}]$, where $\region{R}$ is a region, a function that returns a pair of
+positive integers that represent the width and height of $\region{R}$. Once we have constructed all
+possible regions, we iterate over all possible decompositions according to the following steps:
+
+\begin{enumerate}[label=\arabic*.]
+  \item\label{start-label} Select each possible region $\region{R}$ in image $I$
+  \item If $\region{R} = I$, then $R$ is a sum node and is root
+  \item Else if $R$ contains only gaussians, skip this region
+  \item Else, $R$ exists and is a set of sum nodes
+  \item Partition $\region{R}$ into a pairing of subregions $\region{R}_1$ and $\region{R}_2$
+  \item For each subregion $\region{R}_i$
+    \begin{enumerate}[label*=\arabic*]
+      \item Let $(w, h) \gets \region{R}_i$
+      \item If $w > r$ and $h > r$ then region node $R_i$ must be a set of $m$ gaussians
+      \item Else, region node $R_i$ must be a set of $m$ sum nodes
+    \end{enumerate}
+  \item Create a set $\Pi$ of product nodes
+  \item For each pair $(R_1^i, R_2^j)$, where $R_p^q$ is the inner node $q$ of subregion node $R_p$
+    \begin{enumerate}[label*=\arabic*]
+      \item Create a product node $\pi$ and add it to set $\Pi$
+      \item Add $R_1^i$ and $R_2^j$ as children of $\pi$
+      \item Add $\pi$ as child of all inner sum nodes of $R$
+    \end{enumerate}
+  \item Go to step~\ref{start-label}
+\end{enumerate}
+
+The structural algorithm is almost complete. The main object of interest now is on finding all
+possible regions in an image. Consider the matrix $M_{n\times m}$ as the image representation of
+$I$ indexed by 0. Then we can find all possible regions by iteration over every top-left position
+$(x,y)$ and for each of these positions iterating over all bottom-right pixels $(x+p,y+q), 0\leq
+p<n, 0\leq q<m$.
+
+We assume a dataset $\mathcal{D}$ where each instance $\mathcal{D}[X]$ gives an ordered sequence of
+integers corresponding to the image pixels in expanded form.
+
+\begin{algorithm}[H]
+  \caption{\code{CreateRegions}}\label{alg:createregions}
+  \begin{algorithmic}[1]
+    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
+    \Require\,Dataset $\mathcal{D}$
+    \Require\,Integer $m$ as number of components in each Region
+    \Require\,Integer $r$ as resolution
+    \Ensure\,A list $\mathcal{L}$ of Regions indexed by their region map function value
+    \State\,Let $n=w\cdot h$
+    \For{$i\gets 0..(n-1)$}
+      \State\,$x_1\gets i\mod w$
+      \State\,$y_1\gets i/w$
+      \For{$x_2\gets x_1..(w-1)$}
+        \For{$y_2\gets y_2..(h-1)$}
+          \State\,Let $R$ be a new Region node
+          \If{$x_2-x_1 = r$ and $y_2-y_1 = r$}
+            \State\,$R\gets$\mcode{GaussianMixture$(x_1, y_1, x_2, y_2, D, m)$}
+            \LineComment{\code{GaussianMixture} returns a node containing $m$ gaussians}
+          \Else%
+            \State\,$R\gets$\mcode{RegionNode$(m)$}
+            \LineComment{\code{RegionNode} returns a node containing $m$ sum nodes}
+          \EndIf%
+          \State\,$j\gets$\mcode{Encode$(x_1,y_1,x_2,y_2)$}
+          \State\,$\mathcal{L}[j]\gets R$
+        \EndFor%
+      \EndFor%
+    \EndFor%
+    \State\,\textbf{return} $\mathcal{L}$
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+  \caption{\code{Structure}}\label{alg:structure}
+  \begin{algorithmic}[1]
+    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
+    \Require\,Dataset $\mathcal{D}$
+    \Require\,Integer $m$ as number of components in each Region
+    \Require\,Integer $r$ as resolution
+    \Ensure\,An SPN $S$ containing the learned structure from image $I$
+    \State\,\mcode{CreateRegions$(w, h, D, m, r)$}
+  \end{algorithmic}
+\end{algorithm}
 
 %--------------------------------------------------------------------------------------------------
 
