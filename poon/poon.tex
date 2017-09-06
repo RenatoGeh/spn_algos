@@ -1,5 +1,7 @@
 \documentclass{amsart}
 
+% biber
+
 \usepackage[english]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
@@ -172,10 +174,12 @@ thus the root of $G$ is a set of $k$ sum nodes. Let $R$ be the root node of $G$.
 and $R_2$ will both have $k$ sum nodes (or univariate distributions for leaves). We shall denote as
 $R_i^j$ the $j$-th sum node of region node $i$. For each pairing of sum nodes $(R_1^i, R_2^j)$, we
 create a product node $\pi$ and add $R_1^i$ and $R_2^j$ as children of $\pi$. The set $\Pi$ of
-these product nodes are the decomposition nodes of $\region{R}$ into $\region{R_1}$ and
-$\region{R_2}$.  Once we have created all product nodes in this set, we add all of them as children
+these product nodes are the decomposition nodes of $\region{R}$ into $\region{R}_1$ and
+$\region{R}_2$.  Once we have created all product nodes in this set, we add all of them as children
 of $R$. If $R$ is a region node, then adding $\Pi$ as children of $R$ means, for every sum node
-$\sigma$ in $R$, set product node $\pi\in\Pi$ as a child of $\sigma$.
+$\sigma$ in $R$, set product node $\pi\in\Pi$ as a child of $\sigma$. Each product set $\Pi$ will
+have $\binom{m}{2}$ product nodes, since we take every distinct pairing of sum nodes in $R_1$ and
+$R_2$.
 
 \begin{figure}[h]
   \centering\includegraphics[scale=0.4]{graphs/decomp.png}
@@ -229,7 +233,7 @@ find what region a number represents. We define the inverse function of $f$ belo
   $r\in\mathbb{Z}_{m^2n^2}$ into a tuple $(x_1,y_1,x_2,y_2)\in\mathbb{Z}_m\times\mathbb{Z}_n\times
   \mathbb{Z}_m\mathbb{Z}_n$. Let $g=f^{-1}$. We define $g$ as an algorithm as follows
   \begin{algorithm}[H]
-    \caption{\normalfont{Function \code{Encode}$\defeq f^{-1} = g$}}
+    \caption{\normalfont{Function \code{Encode} $\coloneqq f^{-1} = g$}}
     \begin{algorithmic}[1]
       \normalfont%
       \Require\,$r\in\mathbb{Z}_{m^2n^2}$
@@ -285,15 +289,6 @@ possible regions, we iterate over all possible decompositions according to the f
   \item Go to step~\ref{start-label}
 \end{enumerate}
 
-The structural algorithm is almost complete. The main object of interest now is on finding all
-possible regions in an image. Consider the matrix $M_{n\times m}$ as the image representation of
-$I$ indexed by 0. Then we can find all possible regions by iteration over every top-left position
-$(x,y)$ and for each of these positions iterating over all bottom-right pixels $(x+p,y+q), 0\leq
-p<n, 0\leq q<m$.
-
-We assume a dataset $\mathcal{D}$ where each instance $\mathcal{D}[X]$ gives an ordered sequence of
-integers corresponding to the image pixels in expanded form.
-
 \begin{algorithm}[H]
   \caption{\code{CreateRegions}}\label{alg:createregions}
   \begin{algorithmic}[1]
@@ -301,15 +296,27 @@ integers corresponding to the image pixels in expanded form.
     \Require\,Dataset $\mathcal{D}$
     \Require\,Integer $m$ as number of components in each Region
     \Require\,Integer $r$ as resolution
-    \Ensure\,A list $\mathcal{L}$ of Regions indexed by their region map function value
+    \Ensure\,A list $\mathcal{L}$ of Nodes indexed by their region map function value
     \State\,Let $n=w\cdot h$
     \For{$i\gets 0..(n-1)$}
       \State\,$x_1\gets i\mod w$
       \State\,$y_1\gets i/w$
-      \For{$x_2\gets x_1..(w-1)$}
-        \For{$y_2\gets y_2..(h-1)$}
-          \State\,Let $R$ be a new Region node
-          \If{$x_2-x_1 = r$ and $y_2-y_1 = r$}
+      \For{$x_2\gets (w-1)..x_1$ decreasingly}
+        \For{$y_2\gets (h-1)..y_1$ decreasingly}
+          \If{$x_1=0$ and $y_1=0$ and $x_2=w-1$ and $y_2=h-1$}
+            \LineComment{The entire image is the root sum node}
+            \State\,$j\gets$\mcode{Encode$(x_1,y_1,x_2,y_2)$}
+            \State\,$\mathcal{L}[j]\gets$\mcode{SumNode$()$}
+            \LineComment{\code{SumNode} returns a sum node}
+          \EndIf%
+          \State\,Let $R$ be a new Region node\label{alg:createregions-mk1}
+          \State\,Let $d_x=x_2-x_1$ and $d_y=y_2-y_1$
+          \If{$d_x < r$ or $d_y < r$}
+            \State\,$x\gets\max(x_1+r,x_2)$
+            \State\,$y\gets\max(y_1+r,y_2)$
+            \State\,$r\gets$\mcode{Encode$(x_1,y_1,x,y)$}
+            \State\,$R\gets\mathcal{L}[r]$\label{alg:createregions-mk2}
+          \ElsIf{$d_x = r$ and $d_y = r$}
             \State\,$R\gets$\mcode{GaussianMixture$(x_1, y_1, x_2, y_2, D, m)$}
             \LineComment{\code{GaussianMixture} returns a node containing $m$ gaussians}
           \Else%
@@ -325,7 +332,31 @@ integers corresponding to the image pixels in expanded form.
   \end{algorithmic}
 \end{algorithm}
 
-\begin{algorithm}[H]
+The structural algorithm is almost complete. The main object of interest now is on finding all
+possible regions in an image. Consider the matrix $M_{n\times m}$ as the image representation of
+$I$ indexed by 0. Then we can find all possible regions by iteration over every top-left position
+$(x,y)$ and for each of these positions iterating over all bottom-right pixels $(x+p,y+q), 0\leq
+p<n, 0\leq q<m$.
+
+We assume a dataset $\mathcal{D}$ where each instance $\mathcal{D}[X]$ gives an ordered sequence of
+integers corresponding to the image pixels in expanded form. Let $R$ be a region, $(x_1,y_1)$ be
+its top-left position and $(x_2,y_2)$ its bottom-right position. We call $(x_1,y_1,x_2,y_2)$ the
+coordinates of $R$.
+
+\begin{proposition} Let $R_1$ be the region in Line~\ref{alg:createregions-mk1}.
+  Line~\ref{alg:createregions-mk2} in function \code{CreateRegions} always yields
+  a region $R_2$ that has already been previously created.
+\end{proposition}
+\begin{proof}
+  Let $(x_1,y_1)$ be $R_1$'s top-left position. We fix $x_2\geq x_1+r$. The third \code{for} loop
+  in \code{CreateRegions} yields a decreasing sequence from $h-1$ to $y_1$. So for each $y_2$ in
+  this ordered sequence, the previous instance will have already been computed. It then follows
+  that for every $y_2=y_1+r-k$, $0\leq k\leq r$, it is true that $y_1+r$ has already been computed.
+  We do the same for $x_2$ by fixing $y_2\geq y_1+r$. When both $x_2<x_1+r$ and $y_2<y_1+r$, we
+  fall into the previous subcases.
+\end{proof}
+
+\begin{algorithm}[h]
   \caption{\code{Structure}}\label{alg:structure}
   \begin{algorithmic}[1]
     \Require\,A pair $(w,h)$ representing the image $I$ dimensions
@@ -333,7 +364,21 @@ integers corresponding to the image pixels in expanded form.
     \Require\,Integer $m$ as number of components in each Region
     \Require\,Integer $r$ as resolution
     \Ensure\,An SPN $S$ containing the learned structure from image $I$
-    \State\,\mcode{CreateRegions$(w, h, D, m, r)$}
+    \State\,$\mathcal{L}\gets$\mcode{CreateRegions$(w, h, D, m, r)$}
+    \State\,$s\gets$\mcode{Encode$(0,0,w-1,h-1)$}
+    \State\,$S\gets\mathcal{L}[s]$
+    \LineComment{$S$ is the root node}
+    \For{each key and value pair $(k,R)$ in $\mathcal{L}$}
+      \If{$k = s$}
+        \State\,\textbf{skip}
+      \EndIf%
+      \State\,$(x_1,y_1,x_2,y_2)\gets$ \mcode{Decode$(k)$}
+      \LineComment{Find two possible parent regions of $R$}
+      \LineComment{The other two subcases are treated in their complement regions}
+      \State\,\mcode{LeftCase$(x_1,y_1,x_2,y_2,\mathcal{L})$}
+      \State\,\mcode{BottomCase$(x_1,y_1,x_2,y_2,\mathcal{L})$}
+    \EndFor%
+    \State\,\textbf{return} $S$
   \end{algorithmic}
 \end{algorithm}
 
