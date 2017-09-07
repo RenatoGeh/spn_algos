@@ -52,6 +52,7 @@
 \newcommand{\algorithmautorefname}{Algorithm}
 \algrenewcommand\algorithmicrequire{\textbf{Input}}
 \algrenewcommand\algorithmicensure{\textbf{Output}}
+\algrenewcomment[1]{\hspace{0.25cm}\(\triangleright\) #1}
 \algnewcommand{\LineComment}[1]{\State\,\(\triangleright\) #1}
 
 \captionsetup[table]{labelsep=space}
@@ -343,9 +344,9 @@ integers corresponding to the image pixels in expanded form. Let $R$ be a region
 its top-left position and $(x_2,y_2)$ its bottom-right position. We call $(x_1,y_1,x_2,y_2)$ the
 coordinates of $R$.
 
-\begin{proposition} Let $R_1$ be the region in Line~\ref{alg:createregions-mk1}.
-  Line~\ref{alg:createregions-mk2} in function \code{CreateRegions} always yields
-  a region $R_2$ that has already been previously created.
+\begin{proposition} Let $R_1$ be the region in Line~\ref{alg:createregions-mk1} in function
+  \code{CreateRegions}.  Line~\ref{alg:createregions-mk2} always yields a region $R_2$ that has
+  already been previously created.
 \end{proposition}
 \begin{proof}
   Let $(x_1,y_1)$ be $R_1$'s top-left position. We fix $x_2\geq x_1+r$. The third \code{for} loop
@@ -365,17 +366,17 @@ coordinates of $R$.
     \Require\,Integer $r$ as resolution
     \Ensure\,An SPN $S$ containing the learned structure from image $I$
     \State\,$\mathcal{L}\gets$\mcode{CreateRegions$(w, h, D, m, r)$}
-    \State\,$s\gets$\mcode{Encode$(0,0,w-1,h-1)$}
-    \State\,$S\gets\mathcal{L}[s]$
-    \LineComment{$S$ is the root node}
     \For{each key and value pair $(k,R)$ in $\mathcal{L}$}
       \If{$k = s$}
         \State\,\textbf{skip}
       \EndIf%
       \State\,$(x_1,y_1,x_2,y_2)\gets$ \mcode{Decode$(k)$}
-      \State\,\mcode{LeftQuadrant$(x_1,y_1,x_2,y_2,\mathcal{L})$}
-      \State\,\mcode{BottomQuadrant$(x_1,y_1,x_2,y_2,\mathcal{L})$}
+      \State\,\mcode{LeftQuadrant$(x_1,y_1,x_2,y_2,m,\mathcal{L})$}
+      \State\,\mcode{BottomQuadrant$(x_1,y_1,x_2,y_2,m,\mathcal{L})$}
     \EndFor%
+    \State\,$s\gets$\mcode{Encode$(0,0,w-1,h-1)$}
+    \State\,$S\gets\mathcal{L}[s]$
+    \LineComment{$S$ is the root node}
     \State\,\textbf{return} $S$
   \end{algorithmic}
 \end{algorithm}
@@ -464,12 +465,96 @@ left and bottom quadrant is correct.
     \draw (4,4.5) node[right] {$(x_2,0),\ldots,(x_2,y_1-1)$};
   \end{tikzpicture}
   \captionsetup{justification=raggedright}
-  \caption{The left bottom. Region $R_2$ is the complementary region of $R_1$ and can take any
+  \caption{The bottom quadrant. Region $R_2$ is the complementary region of $R_1$ and can take any
   coordinates $(x_1,y',x_2,y_1)$, where $0\leq y'\leq y_1-1$.\label{fig:bottom-quadrant}}
 \end{figure}
 
-At each pairing of subregions $R_1$ and $R_2$ in a quadrant $Q$, we must create a set of product
-nodes $\Pi$.
+At each pairing of subregions $R_1$ and $R_2$ in each quadrant $Q$, we must create a set of product
+nodes $\Pi$ and connect the parent region $R=R_1\cup R_2$ to all the internal product nodes of
+$\Pi$. We now define functions \code{LeftQuadrant} and \code{BottomQuadrant}. Both functions are
+similar, and the only difference is for the left quadrant we iterate horizontally searching for
+subregions complementary to $R_1$. In the bottom quadrant, we iterate vertically searching for the
+complementaries.
+
+\begin{algorithm}[h]
+  \caption{\code{LeftQuadrant}}\label{alg:leftquadrant}
+  \begin{algorithmic}[1]
+    \Require\,Coordinates $(x_1,y_1,x_2,y_2)$ of region $R_1$
+    \Require\,Integer $m$ number of components
+    \Require\,Node map $\mathcal{L}$
+    \For{$x\gets 0..(x_1-1)$}
+      \State\,$R_2\gets \mathcal{L}[$\mcode{Encode$(x,y_1,x_1,y_2)$}$]$
+        \Comment{$R_2$ is the complementary region of $R_1$}
+      \State\,$R\gets\mathcal{L}[$\mcode{Encode$(x,y_1,x_2,y_2)$}$]$
+        \Comment{$R$ is the parent region (i.e.\ $R=R_1\cup R_2$)}
+      \For{$i\gets 1..m$}
+        \For{$j\gets 1..m$}
+          \State\,$\pi\gets$ \mcode{ProductNode$()$}
+          \State\,\mcode{$\pi$.AddChild$(R_1^i)$}, \mcode{$\pi$.AddChild$(R_2^j)$}
+          \If{$R$ is a Region node}
+            \For{$l\gets 1..m$}
+              \State\,\mcode{$R^l$.AddChild$(\pi)$}
+            \EndFor%
+          \Else\Comment{$R$ is a sum node and is the entire image}
+            \State\,\mcode{$R$.AddChild$(\pi)$}
+          \EndIf%
+        \EndFor%
+      \EndFor%
+    \EndFor%
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[h]
+  \caption{\code{BottomQuadrant}}\label{alg:bottomquadrant}
+  \begin{algorithmic}[1]
+    \Require\,Coordinates $(x_1,y_1,x_2,y_2)$ of region $R_1$
+    \Require\,Integer $m$ number of components
+    \Require\,Node map $\mathcal{L}$
+    \For{$y\gets 0..(y_1-1)$}
+      \State\,$R_2\gets\mathcal{L}[$\mcode{Encode$(x_1,y,x_2,y_1)$}$]$
+        \Comment{$R_2$ is the complementary region of $R_1$}
+      \State\,$R\gets\mathcal{L}[$\mcode{Encode$(x_1,y,x_2,y_2)$}$]$
+        \Comment{$R$ is the parent region (i.e.\ $R=R_1\cup R_2$)}
+      \For{$i\gets 1..m$}
+        \For{$j\gets 1..m$}
+          \State\,$\pi\gets$ \mcode{ProductNode$()$}
+          \State\,\mcode{$\pi$.AddChild$(R_1^i)$}, \mcode{$\pi$.AddChild$(R_2^j)$}
+          \If{$R$ is a Region node}
+            \For{$l\gets 1..m$}
+              \State\,\mcode{$R^l$.AddChild$(\pi)$}
+            \EndFor%
+          \Else\Comment{$R$ is a sum node and is the entire image}
+            \State\,\mcode{$R$.AddChild$(\pi)$}
+          \EndIf%
+        \EndFor%
+      \EndFor%
+    \EndFor%
+  \end{algorithmic}
+\end{algorithm}
+
+In both functions, we are taking region partitions $R_1$ and $R_2$, getting the parent region $R$,
+which is equivalent to getting the union of $R_1$ and $R_2$, and then iterating over all possible
+2-combinations of internal nodes of $R_1$ and $R_2$. We then add all product nodes as children of
+$R$'s internal sum nodes. If $R$ is a single regular sum node, then we have reached the root node,
+and it is sufficient to simply add the product nodes as children of $R$, since $R$ has no internal
+nodes.
+
+In this structural algorithm we do not mention edge weights. However we could have initialized
+weights randomly (in the $[0,1]$ range), set all weights to zero or set them to a uniform
+distribution. We talk about weight learning in more depth in the next section.
+
+We now have most of the structural algorithm formally defined. However, we have not clearly defined
+two data structures: \code{GaussianMixture} and \code{RegionNode}. The former can be thought of as
+a sum node with $m$ gaussians, and the latter simply a set of $m$ sum nodes. Let $G$ be an
+m-gaussian node. We assume that $G$ is a sum node with $m$ gaussians as leaves. Additionally, the
+value of $G$ is the value of the sum node, and $G$ itself will be, for simplicity purposes,
+considered a leaf itself.
+
+\section{Parameter learning}
+
+\subsection{Gradient descent}
+
+\subsection{Expectation-maximization}
 
 %--------------------------------------------------------------------------------------------------
 
