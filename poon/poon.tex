@@ -373,14 +373,103 @@ coordinates of $R$.
         \State\,\textbf{skip}
       \EndIf%
       \State\,$(x_1,y_1,x_2,y_2)\gets$ \mcode{Decode$(k)$}
-      \LineComment{Find two possible parent regions of $R$}
-      \LineComment{The other two subcases are treated in their complement regions}
-      \State\,\mcode{LeftCase$(x_1,y_1,x_2,y_2,\mathcal{L})$}
-      \State\,\mcode{BottomCase$(x_1,y_1,x_2,y_2,\mathcal{L})$}
+      \State\,\mcode{LeftQuadrant$(x_1,y_1,x_2,y_2,\mathcal{L})$}
+      \State\,\mcode{BottomQuadrant$(x_1,y_1,x_2,y_2,\mathcal{L})$}
     \EndFor%
     \State\,\textbf{return} $S$
   \end{algorithmic}
 \end{algorithm}
+
+Next, we clarify functions \mcode{LeftQuadrant} and \mcode{BottomQuadrant}. Recall the algorithm
+outline we listed earlier. For each decomposition of a region into two subregions, we must create a
+set of product nodes whose internal products nodes are connected the two distinct subregion
+internal nodes. Let $R$ be a region. Our goal is to find the parent regions of $R$. In other words,
+we must find all possible decompositions in which $R$ is one of the two disjoint subregions. Since
+we only take axis-aligned decompositions into account, we can represent all possible decompositions
+of $R$ as tightly-bound subrectangles.
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}
+    \draw[thick] (0,0)
+      -- (8, 0) node[right,fill=white] {$(w-1,h-1)$}
+      -- (8, 6)
+      -- (0, 6) node[left,fill=white] {$(0,0)$}
+      -- cycle;
+    \draw (2,0) -- (2,5) -- (6,5) -- (6,0) -- cycle;
+    \draw (0,5) -- (6,5) -- (6,1) -- (0,1) -- cycle;
+    \draw (2,6) -- (2,1) -- (6,1) -- (6,6) -- cycle;
+    \draw (8,1) -- (2,1) -- (2,5) -- (8,5) -- cycle;
+    \draw (4,3) node {$R_1$};
+    \draw (1,3) node {$[R_L^1,\ldots,R_L^p]$};
+    \draw (7,3) node {$[R_R^1,\ldots,R_R^q]$};
+    \draw (4,5.5) node {$[R_T^1,\ldots,R_T^r]$};
+    \draw (4,0.5) node {$[R_B^1,\ldots,R_B^s]$};
+    \draw (2,5) node[fill=white] {$(x_1,y_1)$};
+    \draw (6,1) node[fill=white] {$(x_2,y_2)$};
+  \end{tikzpicture}
+  \captionsetup{justification=raggedright}
+  \caption{Given a decomposition of a region into two subregions, where one of them is $R_1$, we
+  can find any possible complementary regions of $R_1$ by searching each quadrant. The image above
+  shows all possible decompositions containing $R_1$, where the set $[R_Q^1,\ldots,R_Q^m]$, where
+  $Q$ is a quadrant, contains all complementary regions of $R_1$ in the direction of $Q$. A
+  decompositon is two regions $R_1$ and $R_Q^i$.}
+\end{figure}
+
+To find all the decompositions that contains a region $R_1$, we take each possible quadrant (we
+name them $\{L,R,T,B\}$ for Left, Right, Top and Bottom) and then take all possible $R_Q^i$ region,
+where $Q$ is the quadrant and $i$ the $i$-th region in $Q$. It suffices to find decompositions from
+$L$ and $B$, as we will eventually do the same for the complementary region of $R_1$, which will
+account for the $R$ and $T$ quadrants.
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}
+    \draw (0,0) -- (0,4) -- (2,4) -- (2,0) -- cycle;
+    \draw[thick] (2,0) -- (2,4) -- (6,4) -- (6,0) -- cycle;
+    \draw (1,2) node {$R_2$};
+    \draw (4,2) node {$R_1$};
+    \draw (1,0) node[anchor=north] {$(0,y_2),\ldots,(x_1-1,y_2)$};
+    \draw (1,4) node[anchor=south] {$(0,y_1),\ldots,(x_1-1,y_1)$};
+    \draw (2,4) node[anchor=north west] {$(x_1,y_1)$};
+    \draw (2,0) node[anchor=south west] {$(x_1,y_2)$};
+    \draw (6,4) node[right] {$(x_2,y_1)$};
+    \draw (6,0) node[right] {$(x_2,y_2)$};
+  \end{tikzpicture}
+  \captionsetup{justification=raggedright}
+  \caption{The left quadrant. Region $R_2$ is the complementary region of $R_1$ and can take any
+  coordinates $(x',y_1,x_1,y_2)$, where $0\leq x'\leq x_1-1$.\label{fig:left-quadrant}}
+\end{figure}
+
+\autoref{fig:left-quadrant} shows a decomposition that contains subregions $R_1$ and $R_2$. Let
+$(x_1,y_1,x_2,y_2)$ be the coordinates to $R_1$. We have $x_1$ subregions $R_2$ that are possible
+decompositions with $R_1$. Similarly for~\autoref{fig:bottom-quadrant}, we have $y_1$ possible
+subregions $R_2$. Consider the left quadrant. If $R_1$ switches place with $R_2$, it becomes clear
+that we now have the right quadrant. Similarly for the bottom quadrant, by switching $R_1$ and
+$R_2$, we have the top quadrant. This means our previous assumption that it is enough to take the
+left and bottom quadrant is correct.
+
+\begin{figure}[h]
+  \centering
+  \begin{tikzpicture}
+    \draw (0,0) -- (0,5) -- (4,5) -- (4,0) -- cycle;
+    \draw[thick] (0,0) -- (0,4) -- (4,4) -- (4,0) -- cycle;
+    \draw (2,4.5) node {$R_2$};
+    \draw (2,2) node {$R_1$};
+    \draw (0,0) node[left] {$(x_1,y_2)$};
+    \draw (4,0) node[right] {$(x_2,y_2)$};
+    \draw (0,4) node[anchor=north west] {$(x_1,y_1)$};
+    \draw (4,4) node[anchor=north east] {$(x_2,y_1)$};
+    \draw (0,4.5) node[left] {$(x_1,0),\ldots,(x_1,y_1-1)$};
+    \draw (4,4.5) node[right] {$(x_2,0),\ldots,(x_2,y_1-1)$};
+  \end{tikzpicture}
+  \captionsetup{justification=raggedright}
+  \caption{The left bottom. Region $R_2$ is the complementary region of $R_1$ and can take any
+  coordinates $(x_1,y',x_2,y_1)$, where $0\leq y'\leq y_1-1$.\label{fig:bottom-quadrant}}
+\end{figure}
+
+At each pairing of subregions $R_1$ and $R_2$ in a quadrant $Q$, we must create a set of product
+nodes $\Pi$.
 
 %--------------------------------------------------------------------------------------------------
 
