@@ -552,7 +552,84 @@ considered a leaf itself.
 
 \section{Parameter learning}
 
+The~\cite{poon-domingos} article mentions two ways of weight updating, gradient descent (GD)
+through backpropagation and expectation-maximization (EM). Both suffer from the gradient diffusion
+problem, that is, for deep structures, the signal fades away as we go down layers, reaching zero in
+a few steps.  This is countered by using a hard version based on the MAP states instead of marginal
+inference. For each weight update algorithm, we first show the soft version using marginal
+inference, and then show the hard version using MAP inference. Both algorithms can be applied the
+same way in the master learning algorithm from~\cite{poon-domingos} shown below.
+
+\begin{algorithm}[h]
+  \caption{\code{LearnSPN}}\label{alg:learnspn}
+  \begin{algorithmic}[1]
+    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
+    \Require\,Dataset $\mathcal{D}$
+    \Require\,Integer $m$ as number of components in each Region
+    \Require\,Integer $r$ as resolution
+    \Ensure\,An SPN with learned weights
+    \State\,$S\gets$ \mcode{Structure$(w,h,\mathcal{D},m,r)$}
+    \State\,\mcode{InitializeWeights$(S)$}
+    \Repeat%
+      \State\,\mcode{UpdateWeights$(S,\mathcal{D})$}
+    \Until{convergence}
+    \State\,$S\gets$ \mcode{PruneZeroWeights$(S)$}
+    \State\,\textbf{return} $S$
+  \end{algorithmic}
+\end{algorithm}
+
+Weight initialization, as mentioned in the previous section, can be done either through
+randomization in the unit interval, a uniformed distribution or all weights set to zero.
+
+Pruning zero weights is done by recursively removing edges that have zero weights. Then, while
+there exists non-root parentless nodes, remove each of them.
+
+\begin{algorithm}[h]
+  \caption{\code{PruneZeroWeights}}\label{alg:prunezeroweights}
+  \begin{algorithmic}[1]
+    \Require\,An SPN $S$
+    \Ensure\,The resulting SPN after pruning
+    \State\,Let $S=(V,E)$, where $V$ is the set of vertices and $E$ the set of edges of $S$
+    \State\,Let $Q$ be a queue data structure
+    \State\,Let $T$ be a stack data structure
+    \State\,Let $U$ be a list of booleans, where $U[i]$ is true if node $i$ has already been
+      visited
+    \State\,Let $L$ be an adjacency list where $L[i]$ contains a list of the parents of node $i$
+    \State\,\mcode{$Q$.Enqueue$(S)$}, \mcode{$T$.Push$(S)$}
+    \State\,$U[S]\gets\textbf{true}$, $L[S]\gets\textbf{nil}$
+    \algstore{prunezeroweights}
+  \end{algorithmic}
+\end{algorithm}
+\begin{algorithm}[h]
+  \begin{algorithmic}[1]
+    \algrestore{prunezeroweights}
+    \For{each child $c$ of $S$}
+      \State\,\mcode{$L[c]$.Add$(S)$}
+    \EndFor%
+    \While{\textbf{not} \mcode{$Q$.Empty$()$}}
+      \State\,$s\gets$ \mcode{$Q$.Dequeue$()$}
+      \For{each child $c$ of $s$}
+        \State\,\mcode{$L[c]$.Add$(s)$}
+        \If{\textbf{not} $U[c]$}
+          \State\,\mcode{$Q$.Enqueue$(c)$}, \mcode{$T$.Push$(c)$}
+          \State\,$U[c]\gets\textbf{true}$
+        \EndIf%
+      \EndFor%
+    \EndWhile%
+    \State\,Let $M$ be a map where $M[i]$ is true if node $i$ is marked for deletion.
+    \While{\textbf{not} \mcode{$T$.Empty$()$}}
+      \State\,$s\gets$ \mcode{$T$.Dequeue$()$}
+      \If{$s$ is a sum node}
+
+      \EndIf%
+    \EndWhile%
+    \State\,\textbf{return} $S$
+  \end{algorithmic}
+\end{algorithm}
+
 \subsection{Gradient descent}
+
+
 
 \subsection{Expectation-maximization}
 
