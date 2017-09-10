@@ -589,14 +589,13 @@ there exists non-root parentless nodes, remove each of them.
   \begin{algorithmic}[1]
     \Require\,An SPN $S$
     \Ensure\,The resulting SPN after pruning
-    \State\,Let $S=(V,E)$, where $V$ is the set of vertices and $E$ the set of edges of $S$
     \State\,Let $Q$ be a queue data structure
     \State\,Let $T$ be a stack data structure
-    \State\,Let $U$ be a list of booleans, where $U[i]$ is true if node $i$ has already been
+    \State\,Let $V$ be a list of booleans, where $V[i]$ is true if node $i$ has already been
       visited
-    \State\,Let $L$ be an adjacency list where $L[i]$ contains a list of the parents of node $i$
+    \State\,Let $L$ be an adjacency list where $L[i]$ contains a list of nodes
     \State\,\mcode{$Q$.Enqueue$(S)$}, \mcode{$T$.Push$(S)$}
-    \State\,$U[S]\gets\textbf{true}$, $L[S]\gets\textbf{nil}$
+    \State\,$V[S]\gets\textbf{true}$, $L[S]\gets[\,]$
     \algstore{prunezeroweights}
   \end{algorithmic}
 \end{algorithm}
@@ -610,9 +609,9 @@ there exists non-root parentless nodes, remove each of them.
       \State\,$s\gets$ \mcode{$Q$.Dequeue$()$}
       \For{each child $c$ of $s$}
         \State\,\mcode{$L[c]$.Add$(s)$}
-        \If{\textbf{not} $U[c]$}
+        \If{\textbf{not} $V[c]$}
           \State\,\mcode{$Q$.Enqueue$(c)$}, \mcode{$T$.Push$(c)$}
-          \State\,$U[c]\gets\textbf{true}$
+          \State\,$V[c]\gets\textbf{true}$
         \EndIf%
       \EndFor%
     \EndWhile%
@@ -620,16 +619,73 @@ there exists non-root parentless nodes, remove each of them.
     \While{\textbf{not} \mcode{$T$.Empty$()$}}
       \State\,$s\gets$ \mcode{$T$.Dequeue$()$}
       \If{$s$ is a sum node}
-
+        \For{each edge $e_{s,i}$ in $s$}
+          \If{$\Val(e_{s,i})=0$}
+            \State\,Delete edge $e_{s,i}$
+            \State\,\mcode{$L[i]$.Remove$(s)$}
+            \State\,\mcode{RecursivelyDeleteOrphans$(i,L,M)$}
+          \EndIf%
+        \EndFor%
       \EndIf%
     \EndWhile%
+    \For{each key value pair $(s,e)$ in $M$}
+      \If{$e = \textbf{true}$}
+        \State\,Delete node $s$ from $S$
+      \EndIf%
+    \EndFor%
     \State\,\textbf{return} $S$
   \end{algorithmic}
 \end{algorithm}
 
+We denote $e_{i,j}$ as an edge that goes from node $i$ to node $j$. We denote $\Val(e_{i,j})$ as
+the weight value of edge $e_{i,j}$. In~\autoref{alg:prunezeroweights}, we traverse the graph of SPN
+$S$ in a bottom-up fashion. We run through the graph this particular way to avoid recomputations.
+By going bottom-up, at every zero weight edge of a sum node $s$ we encounter, we can guarantee that
+there are no zero edges on the descendants of $s$. In function \code{PruneZeroWeights}, we first
+store a copy of the graph through an adjacency list $L$. List $L$ stores the parents of a node $i$.
+That is, for every entry $L[i]$, where $i$ is a node, $L[i]$ is a list of parent nodes of $i$. We
+only need to account for sum nodes, as they are the only type of node who have weights on their
+outgoing edges. Once we start iterating over every sum node $s$, we check each outgoing edge of
+$s$. If we find a zero weight edge, we first delete such edge from $S$, remove $s$ as a parent from
+the copied graph adjacency list $L$ and run function \code{RecursivelyDeleteOrphans}. This function
+will delete every descendant of $s$ that has no parent nodes. Since we traverse the graph
+bottom-up, we guarantee that at every call of \code{RecursivelyDeleteOrphans}, there exists no zero
+weight edge in the graph scope of the function. Therefore, it suffices to recursively delete
+orphan nodes.
+
+\autoref{alg:recursivelydeleteorphans} simply performs a breadth-first search on the given sub-SPN,
+searching for any orphan nodes according to list $L$. When it finds such a node $s$, it marks $s$
+for deletion and removes $s$ as parent of its children. Then, it does the same for all children of
+$s$.
+
+\begin{algorithm}[h]
+  \caption{\code{RecursivelyDeleteOrphans}}\label{alg:recursivelydeleteorphans}
+  \begin{algorithmic}[1]
+    \Require\,An SPN $S$
+    \Require\,$L$ adjacency list from \code{PruneZeroWeights}
+    \Require\,$M$ map to mark node deletion
+    \State\,Let $Q$ be a queue data structure
+    \State\,\mcode{$Q$.Enqueue$(S)$}
+    \While{\textbf{not} \mcode{$Q$.Empty$()$}}
+      \State\,$s\gets$ \mcode{$Q$.Dequeue$()$}
+      \If{\mcode{$L[s]$.Empty$()$}}
+        \State\,$M[s]=\textbf{true}$
+        \For{each child $c$ of $s$}
+          \State\,\mcode{$L[c]$.Remove$(s)$}
+        \EndFor%
+        \For{each child $c$ of $s$}
+          \State\,\mcode{$Q$.Enqueue$(c)$}
+        \EndFor%
+      \EndIf%
+    \EndWhile%
+  \end{algorithmic}
+\end{algorithm}
+
+Function \code{UpdateWeights} is what determines whether the algorithm uses gradient descent of
+expectation-maximization. In the next subsections we detail on how to perform generative parameter
+learning using the two techniques.
+
 \subsection{Gradient descent}
-
-
 
 \subsection{Expectation-maximization}
 
