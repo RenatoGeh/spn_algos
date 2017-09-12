@@ -1,0 +1,39 @@
+digraph {
+  node [shape=circle];
+
+  subgraph cluster_P1 {
+    p1_1 [label=<+>];
+    p1_2 [label=<+>];
+    p1_d [label="...",shape=none];
+    p1_n [label=<+>];
+    label=<<i>n</i> sum nodes>;
+    graph [style=dotted];
+  }
+
+  subgraph cluster_P2 {
+    rank="same";
+    p2_1 [label=<&times;>];
+    p2_2 [label=<&times;>];
+    p2_d [label="...",shape=none];
+    p2_m [label=<&times;>];
+    label=<<i>m</i> product nodes>;
+    graph [style=dotted];
+  }
+
+  subgraph cluster_S {
+    rank="same";
+    s [label="+"];
+    label=<S<sub>i</sub>>;
+    graph [style=invis];
+  }
+
+  p1_1 -> s [label=<w<sub>1</sub>>];
+  p1_2 -> s [label=<w<sub>2</sub>>];
+  p1_d -> s [style=invis];
+  p1_n -> s [label=<w<sub>n</sub>>];
+
+  p2_1 -> s;
+  p2_2 -> s;
+  p2_d -> s [style=invis];
+  p2_m -> s;
+}

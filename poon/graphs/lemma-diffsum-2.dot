@@ -1,0 +1,50 @@
+digraph {
+  node [shape=circle];
+
+  subgraph cluster_PP {
+    pp1 [label=<+>,xlabel=<&sigma;<sub>1</sub>>];
+    pp2 [label=<+>,xlabel=<&sigma;<sub>2</sub>>];
+    ppd [label="...",shape=none];
+    ppm [label=<+>,xlabel=<&sigma;<sub>m</sub>>];
+    graph [margin=20,style=solid];
+  }
+
+  subgraph cluster_P1 {
+    margin=10;
+    p1_1 [label=<+>];
+    p1_2 [label=<+>];
+    p1_d [label="...",shape=none];
+    p1_n [label=<+>];
+    graph [margin=20,style=dotted];
+  }
+
+  subgraph cluster_P2 {
+    rank="same";
+    p2_1 [label=<&times;>,xlabel=<&pi;<sub>1</sub>>];
+    p2_2 [label=<&times;>,xlabel=<&pi;<sub>2</sub>>];
+    p2_d [label="...",shape=none];
+    p2_m [label=<&times;>,xlabel=<&pi;<sub>m</sub>>];
+    graph [margin=20,style=dotted];
+  }
+
+  subgraph cluster_S {
+    rank="same";
+    s [label="+",xlabel=<<i>S<sub>i</sub></i>>];
+    graph [style=invis];
+  }
+
+  p2_1 -> pp1;
+  p2_2 -> pp2;
+  p2_d -> ppd [style=invis];
+  p2_m -> ppm;
+
+  p1_1 -> s [label=<w<sub>1</sub>>];
+  p1_2 -> s [label=<w<sub>2</sub>>];
+  p1_d -> s [style=invis];
+  p1_n -> s [label=<w<sub>n</sub>>];
+
+  pp1 -> s [label="1"];
+  pp2 -> s [label="1"];
+  ppd -> s [style=invis];
+  ppm -> s [label="1"];
+}

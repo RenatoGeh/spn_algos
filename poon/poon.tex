@@ -620,7 +620,7 @@ there exists non-root parentless nodes, remove each of them.
       \State\,$s\gets$ \mcode{$T$.Dequeue$()$}
       \If{$s$ is a sum node}
         \For{each edge $e_{s,i}$ in $s$}
-          \If{$\Val(e_{s,i})=0$}
+          \If{$w_{s,i}=0$}
             \State\,Delete edge $e_{s,i}$
             \State\,\mcode{$L[i]$.Remove$(s)$}
             \State\,\mcode{RecursivelyDeleteOrphans$(i,L,M)$}
@@ -637,10 +637,10 @@ there exists non-root parentless nodes, remove each of them.
   \end{algorithmic}
 \end{algorithm}
 
-We denote $e_{i,j}$ as an edge that goes from node $i$ to node $j$. We denote $\Val(e_{i,j})$ as
-the weight value of edge $e_{i,j}$. In~\autoref{alg:prunezeroweights}, we traverse the graph of SPN
-$S$ in a bottom-up fashion. We run through the graph this particular way to avoid recomputations.
-By going bottom-up, at every zero weight edge of a sum node $s$ we encounter, we can guarantee that
+We denote $e_{i,j}$ as an edge that goes from node $i$ to node $j$. We denote $w_{i,j}$ as the
+weight value of edge $e_{i,j}$. In~\autoref{alg:prunezeroweights}, we traverse the graph of SPN $S$
+in a bottom-up fashion. We run through the graph this particular way to avoid recomputations.  By
+going bottom-up, at every zero weight edge of a sum node $s$ we encounter, we can guarantee that
 there are no zero edges on the descendants of $s$. In function \code{PruneZeroWeights}, we first
 store a copy of the graph through an adjacency list $L$. List $L$ stores the parents of a node $i$.
 That is, for every entry $L[i]$, where $i$ is a node, $L[i]$ is a list of parent nodes of $i$. We
@@ -650,8 +650,8 @@ $s$. If we find a zero weight edge, we first delete such edge from $S$, remove $
 the copied graph adjacency list $L$ and run function \code{RecursivelyDeleteOrphans}. This function
 will delete every descendant of $s$ that has no parent nodes. Since we traverse the graph
 bottom-up, we guarantee that at every call of \code{RecursivelyDeleteOrphans}, there exists no zero
-weight edge in the graph scope of the function. Therefore, it suffices to recursively delete
-orphan nodes.
+weight edge in the graph scope of the function. Therefore, it suffices to recursively delete orphan
+nodes.
 
 \autoref{alg:recursivelydeleteorphans} simply performs a breadth-first search on the given sub-SPN,
 searching for any orphan nodes according to list $L$. When it finds such a node $s$, it marks $s$
@@ -686,6 +686,71 @@ expectation-maximization. In the next subsections we detail on how to perform ge
 learning using the two techniques.
 
 \subsection{Gradient descent}
+
+Computing the gradient descent requires first finding the derivatives of each node in the SPN\@. We
+show the derivatives as they appear in~\cite{poon-domingos}. Note that these definitions assume a
+certain particular SPN structure. Namely that the SPN is composed of alternating layers of sum and
+product nodes.
+
+We denote by $\Pa(i)$ the set of parents of a node $i$ and by $\Ch(i)$ the set of children.
+Additionally, we use the following notation $T_{-i}\coloneqq T\setminus\{i\}$, where $T$ is a set
+and $i$ an element of $T$.
+
+\begin{definition}[Sum node derivative]\label{def:sumdiff}
+  Let $S$ be an SPN and $S_i$ a non-root sum node in $S$. By assumption, all parents of $S_i$ are
+  product nodes. The derivative of $S$ wrt $S_i$ is given by
+  \begin{equation*}
+    \frac{\partial S}{\partial S_i}(x) = \sum_{k\in\Pa(i)}\left(\frac{\partial S}{\partial S_k}(x)
+      \right)\prod_{l\in\Ch_{-i}(k)} S_l(x).
+  \end{equation*}
+\end{definition}
+
+\begin{definition}[Product node derivative]\label{def:productdiff}
+  Let $S$ be an SPN and $S_i$ a non-root product node in $S$. By assumption, all parents of $S_i$
+  are sum nodes. The derivative of $S$ wrt $S_i$ is given by
+  \begin{equation*}
+    \frac{\partial S}{\partial S_i}(x) = \sum_{k\in\Pa(i)} w_{k,i}\frac{\partial S}{\partial
+    S_k}(x)
+  \end{equation*}
+\end{definition}
+
+As we have mentioned earlier, Poon and Domingos assume that all parents of products are sums, and
+all parents of sums are products. We show next that the differentiation results do not change when
+a sum has an arbitrary number of sum nodes as parents, or when a product has products as parents.
+
+To prove this result, we must first show that, given an arbitrary structure (i.e.\ a node can
+have any type of node as parent), we can modify such structure to fit the alternating layers
+structure.
+
+\begin{lemma}\label{lemma:diffsum} Let $S$ be an SPN and $S_i$ a non-root sum node of $S$ where $n$
+  parents of $S_i$ are sum nodes and $m$ parents of $S_i$ are product nodes. The derivative of $S$
+  wrt $S_i$ is given by \autoref{def:sumdiff}.
+\end{lemma}
+\begin{proof}
+  From the hypothesis we have that the sub-SPN composed of $S_i$ and its parents is given by
+  \autoref{fig:lemma-diffsum-1}
+  \begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[>=latex',line join=bevel]
+    \end{tikzpicture}
+  \end{figure}
+\end{proof}
+
+\begin{lemma}\label{lemma:diffproduct} Let $S$ be an SPN and $S_i$ a non-root product node of $S$ where
+  $n$ parents of $S_i$ are sum nodes and $m$ parents of $S_i$ are product nodes. The derivative of
+  $S$ wrt $S_i$ is given by \autoref{def:productdiff}.
+\end{lemma}
+
+\begin{theorem} The derivatives given in \autoref{def:sumdiff} and \autoref{def:productdiff}
+  hold for any SPN structure.
+\end{theorem}
+\begin{proof}
+  Let $S$ be an SPN\@. For each node $S_i$ in $S$, if $\Pa(S_i)$ are all of different types than
+  $S_i$, by hypothesis the claim is true. Else, if $S_i$ is a sum node, we know from
+  \autoref{lemma:diffsum} that its differential is equal to \autoref{def:sumdiff}; and if $S_i$ is
+  a product, from \autoref{lemma:diffproduct} we have that the derivative is the same as
+  \autoref{def:productdiff}.
+\end{proof}
 
 \subsection{Expectation-maximization}
 
