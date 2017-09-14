@@ -700,8 +700,8 @@ and $i$ an element of $T$.
   Let $S$ be an SPN and $S_i$ a non-root sum node in $S$. By assumption, all parents of $S_i$ are
   product nodes. The derivative of $S$ wrt $S_i$ is given by
   \begin{equation*}
-    \frac{\partial S}{\partial S_i}(x) = \sum_{k\in\Pa(i)}\left(\frac{\partial S}{\partial S_k}(x)
-      \right)\prod_{l\in\Ch_{-i}(k)} S_l(x).
+    \frac{\partial S}{\partial S_i}(x) = \sum_{S_k\in\Pa(S_i)}\left(\frac{\partial S}{\partial
+    S_k}(x) \right)\prod_{S_l\in\Ch_{-S_i}(S_k)} S_l(x).
   \end{equation*}
 \end{definition}
 
@@ -709,8 +709,8 @@ and $i$ an element of $T$.
   Let $S$ be an SPN and $S_i$ a non-root product node in $S$. By assumption, all parents of $S_i$
   are sum nodes. The derivative of $S$ wrt $S_i$ is given by
   \begin{equation*}
-    \frac{\partial S}{\partial S_i}(x) = \sum_{k\in\Pa(i)} w_{k,i}\frac{\partial S}{\partial
-    S_k}(x)
+    \frac{\partial S}{\partial S_i}(x) = \sum_{S_k\in\Pa(S_i)} w_{S_k,S_i}\frac{\partial
+    S}{\partial S_k}(x)
   \end{equation*}
 \end{definition}
 
@@ -727,28 +727,96 @@ structure.
   wrt $S_i$ is given by \autoref{def:sumdiff}.
 \end{lemma}
 \begin{proof}
-  From the hypothesis we have that the sub-SPN composed of $S_i$ and its parents is given by
-  \autoref{fig:lemma-diffsum-1}
+  From the hypothesis we have that the sub-SPN composed solely of $S_i$ and its parents is given by
+  \autoref{fig:lemma-diffsum-1}.
   \begin{figure}[h]
-    \centering
-    \begin{tikzpicture}[>=latex',line join=bevel]
-    \end{tikzpicture}
+    \centering\includegraphics[scale=0.5]{graphs/lemma-diffsum-1.png}
+    \caption{$S_i$ has $m$ product parents and $n$ sum parents. It has an arbitrary
+    structure because of sum parents.}\label{fig:lemma-diffsum-1}
   \end{figure}
+  We can modify such a structure with no change in the value of $S$ by adding a single product node
+  as child of each sum parent and then connecting it to $S_i$, as shown in
+  \autoref{fig:lemma-diffsum-2}.
+  \begin{figure}[h]
+    \centering\includegraphics[scale=0.5]{graphs/lemma-diffsum-2.png}
+    \caption{We add the set $\Pi$ of product nodes between $S_i$ and $\sigma_1,\ldots,\sigma_n$.
+      This does not change the value of the SPN.}\label{fig:lemma-diffsum-2}
+  \end{figure}
+  $S$ has no change in value because every node $\sigma_j$ has no change in its value, as we show
+  next. The value of $\sigma_j$ in \autoref{fig:lemma-diffsum-1} is
+  \begin{equation*}
+    \sigma_j(x)=\sum_{k\in\Ch(\sigma_j)} w_{\sigma_j,k}k(x)=w_j S_i+\sum_{k\in\Ch_{-S_i}(\sigma_j)}
+      w_{\sigma_j,k}k(x).
+  \end{equation*}
+  The value of $\sigma_j$ in \autoref{fig:lemma-diffsum-2}, which we shall rename to $\sigma_j'$ is
+  given by the expression
+  \begin{equation*}
+    \sigma_j'(x)=\sum_{k\in\Ch(\sigma_j')} w_{\sigma_j',k}k(x)=w_j \pi_j(x)+\sum_{k\in\Ch_{-\pi_j}
+      (\sigma_j')}w_{\sigma_j',k}k(x).
+  \end{equation*}
+  But $\pi_j(x)=S_i(x)$, therefore:
+  \begin{equation*}
+    \sigma_j'(x)=w_j S_i(x)+\sum_{k\in\Ch_{-\pi_j}(\sigma_j')}w_{\sigma_j',k}k(x)=w_j
+    S_i(x)+\sum_{k\in\Ch_{-S_i}(\sigma_j)} w_{\sigma_j,k}k(x)=\sigma_j(x)
+  \end{equation*}
+  We now need to verify that the derivatives do not change either. We know that for all $S_i$
+  parents, the differentials do not change, since they take their values from their parents. So it
+  suffices to show only that the differential at $S_i$ does not change. After applying the
+  structure transformation from \autoref{fig:lemma-diffsum-2}, we now have all parents of $S_i$ as
+  products. From that we have that the derivative is given by
+  \begin{equation}
+    \begin{split}
+    \frac{\partial S}{\partial S_i}(x)
+      &=\sum_{S_k\in\Pa(S_i)}\frac{\partial S}{\partial S_k}(x)\prod_{S_l\in\Ch_{-S_i}(S_k)}
+        S_l(x)\\
+      &=\sum_{j=1}^n\frac{\partial S}{\partial\pi_j}(x)\prod_{S_l\in\Ch_{-S_i}(\pi_j)}S_l(x)+
+        \sum_{j=1}^n\frac{\partial S}{\partial Z_j}(x)\prod_{S_l\in\Ch_{-S_i}(Z_j)}S_l(x)\\
+      \label{eq:lemma-diffsum-eq}
+    \end{split}
+  \end{equation}
+  Where we named nodes $Z_j$ as the product nodes of $S_i$ that are not in the $\Pi$ set. Our
+  claim is that, for each $\pi_i$, its differential is the same as $\sigma_i$. If we show this
+  claim to be true, than $\partial S/\partial S_i(x)$ must be the same as the one in the original
+  structure. From the definition, $\partial S/\partial \pi_i(x)=\partial S/\partial \sigma_i(x)$.
+  Applying this on \autoref{eq:lemma-diffsum-eq}, we have
+  \begin{equation*}
+    \frac{\partial S}{\partial S_i}(x)=\sum_{j=1}^n\frac{\partial S}{\partial\sigma_j}(x)\prod_{S_l
+      \in\Ch_{-S_i}(\pi_j)}S_l(x)+ \sum_{j=1}^n\frac{\partial S}{\partial Z_j}(x)\prod_{S_l\in
+      \Ch_{-S_i}(Z_j)}S_l(x)
+  \end{equation*}
+  Which is exactly the derivative of the original SPN without the structure modification.
 \end{proof}
 
 \begin{lemma}\label{lemma:diffproduct} Let $S$ be an SPN and $S_i$ a non-root product node of $S$ where
   $n$ parents of $S_i$ are sum nodes and $m$ parents of $S_i$ are product nodes. The derivative of
   $S$ wrt $S_i$ is given by \autoref{def:productdiff}.
 \end{lemma}
+\begin{proof}
+  The proof goes exactly like the previous proof, but on with the structure alterations depicted in
+  \autoref{fig:lemma-diffproduct-2}. \autoref{fig:lemma-diffproduct-1} shows the structure before
+  the transformation.
+  \begin{figure}[h]
+    \centering\includegraphics[scale=0.5]{graphs/lemma-diffproduct-1.png}
+    \caption{Node $S_i$ and its parents.}\label{fig:lemma-diffproduct-1}
+  \end{figure}
+  \begin{figure}[h]
+    \centering\includegraphics[scale=0.5]{graphs/lemma-diffproduct-2.png}
+    \caption{The above SPN with the modified structure.}\label{fig:lemma-diffproduct-2}
+  \end{figure}
+  Similar to sum case, it is easy to prove that the SPN has no change in value and that the
+  derivative of each parent of $S_i$ remains the same. From that, we then apply the definition of
+  derivative of a product node and show that it does not change with the applied transformation to
+  the SPN\@.
+\end{proof}
 
 \begin{theorem} The derivatives given in \autoref{def:sumdiff} and \autoref{def:productdiff}
   hold for any SPN structure.
 \end{theorem}
 \begin{proof}
   Let $S$ be an SPN\@. For each node $S_i$ in $S$, if $\Pa(S_i)$ are all of different types than
-  $S_i$, by hypothesis the claim is true. Else, if $S_i$ is a sum node, we know from
-  \autoref{lemma:diffsum} that its differential is equal to \autoref{def:sumdiff}; and if $S_i$ is
-  a product, from \autoref{lemma:diffproduct} we have that the derivative is the same as
+  $S_i$, the claim is trivially true. Else, if $S_i$ is a sum node, we know from
+  \autoref{lemma:diffsum} that the derivative is equal to \autoref{def:sumdiff}; and if $S_i$ is a
+  product, from \autoref{lemma:diffproduct} we have that the derivative is the same as
   \autoref{def:productdiff}.
 \end{proof}
 

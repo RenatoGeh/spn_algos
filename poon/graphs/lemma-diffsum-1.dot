@@ -1,39 +1,40 @@
 digraph {
   node [shape=circle];
+  splines=false;
 
   subgraph cluster_P1 {
-    p1_1 [label=<+>];
-    p1_2 [label=<+>];
+    margin=10;
+    p1_1 [label=<&times;>];
+    p1_2 [label=<&times;>];
     p1_d [label="...",shape=none];
-    p1_n [label=<+>];
-    label=<<i>n</i> sum nodes>;
-    graph [style=dotted];
+    p1_m [label=<&times;>];
+    label=<<i>m</i> product nodes>
+    graph [margin=20,style=dotted];
   }
 
   subgraph cluster_P2 {
     rank="same";
-    p2_1 [label=<&times;>];
-    p2_2 [label=<&times;>];
+    p2_1 [label=<+>,xlabel=<&sigma;<sub>1</sub>>];
+    p2_2 [label=<+>,xlabel=<&sigma;<sub>2</sub>>];
     p2_d [label="...",shape=none];
-    p2_m [label=<&times;>];
-    label=<<i>m</i> product nodes>;
-    graph [style=dotted];
+    p2_n [label=<+>,xlabel=<&sigma;<sub>n</sub>>];
+    label=<<i>n</i> sum nodes>
+    graph [margin=20,style=dotted];
   }
 
   subgraph cluster_S {
     rank="same";
-    s [label="+"];
-    label=<S<sub>i</sub>>;
+    s [label="+",xlabel=<<i>S<sub>i</sub></i>>];
     graph [style=invis];
   }
 
-  p1_1 -> s [label=<w<sub>1</sub>>];
-  p1_2 -> s [label=<w<sub>2</sub>>];
-  p1_d -> s [style=invis];
-  p1_n -> s [label=<w<sub>n</sub>>];
-
-  p2_1 -> s;
-  p2_2 -> s;
+  p2_1 -> s [label=<w<sub>1</sub>>];
+  p2_2 -> s [label=<w<sub>2</sub>>];
   p2_d -> s [style=invis];
-  p2_m -> s;
+  p2_n -> s [label=<w<sub>n</sub>>];
+
+  p1_1 -> s;
+  p1_2 -> s;
+  p1_d -> s [style=invis];
+  p1_m -> s;
 }

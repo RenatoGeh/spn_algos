@@ -12,6 +12,15 @@ digraph {
     graph [margin=20,style=dotted];
   }
 
+  subgraph cluster_PP {
+    pp1 [label=<+>,xlabel=<&sigma;<sub>1</sub>>];
+    pp2 [label=<+>,xlabel=<&sigma;<sub>2</sub>>];
+    ppd [label="...",shape=none];
+    ppm [label=<+>,xlabel=<&sigma;<sub>m</sub>>];
+    label=<&Sigma;>
+    graph [margin=20,style=solid];
+  }
+
   subgraph cluster_P1 {
     margin=10;
     p1_1 [label=<&times;>,xlabel=<&pi;<sub>1</sub>>];
@@ -28,10 +37,15 @@ digraph {
     graph [style=invis];
   }
 
-  p1_1 -> s;
-  p1_2 -> s;
-  p1_d -> s [style=invis];
-  p1_m -> s;
+  p1_1 -> pp1;
+  p1_2 -> pp2;
+  p1_d -> ppd [style=invis];
+  p1_m -> ppm;
+
+  pp1 -> s [label="1"];
+  pp2 -> s [label="1"];
+  ppd -> s [style=invis];
+  ppm -> s [label="1"];
 
   p2_1 -> s [label=<w<sub>1</sub>>];
   p2_2 -> s [label=<w<sub>2</sub>>];
