@@ -95,6 +95,8 @@
 \newcommand{\code}[1]{\lstinline[mathescape=true]{#1}}
 \newcommand{\mcode}[1]{\lstinline[mathescape]!#1!}
 \newcommand{\dset}[1]{\mathcal{#1}}
+\newcommand{\ddspn}[2]{\frac{\partial#1}{\partial#2}}
+\newcommand{\iddspn}[2]{\partial#1/\partial#2}
 
 \title{%
   \noindent\rule{13cm}{1.0pt}\\
@@ -275,14 +277,14 @@ possible regions, we iterate over all possible decompositions according to the f
   \item Else, $R$ exists and is a set of sum nodes
   \item Partition $\region{R}$ into a pairing of subregions $\region{R}_1$ and $\region{R}_2$
   \item For each subregion $\region{R}_i$
-    \begin{enumerate}[label*=\arabic*]
+    \begin{enumerate}[label*=\arabic*.]
       \item Let $(w, h) \gets \region{R}_i$
       \item If $w > r$ and $h > r$ then region node $R_i$ must be a set of $m$ gaussians
       \item Else, region node $R_i$ must be a set of $m$ sum nodes
     \end{enumerate}
   \item Create a set $\Pi$ of product nodes
   \item For each pair $(R_1^i, R_2^j)$, where $R_p^q$ is the inner node $q$ of subregion node $R_p$
-    \begin{enumerate}[label*=\arabic*]
+    \begin{enumerate}[label*=\arabic*.]
       \item Create a product node $\pi$ and add it to set $\Pi$
       \item Add $R_1^i$ and $R_2^j$ as children of $\pi$
       \item Add $\pi$ as child of all inner sum nodes of $R$
@@ -819,6 +821,66 @@ structure.
   product, from \autoref{lemma:diffproduct} we have that the derivative is the same as
   \autoref{def:productdiff}.
 \end{proof}
+
+\begin{definition}[Weight derivative]
+  Let $S$ be an SPN and $S_i$ a sum node of $S$. Let $W=\{w_{i,1},w_{i,2},\ldots,w_{i,n}\}$ be the
+  set of edge weights, where $w_{i,j}$ is the weight of an edge going from node $S_i$ to $S_j$. The
+  weight derivative of $S$ wrt $w_{i,j}$ is given by
+  \begin{equation*}
+    \frac{\partial S}{\partial w_{i,j}}(x) = \frac{\partial S}{\partial S_i}(x) S_j(x)
+  \end{equation*}
+\end{definition}
+
+The weight derivative $\partial S/\partial w_{i,j}$ computes the gradient descent variation on
+weight $w_{i,j}$. We wish to compute the likelihood gradient and optimize (i.e.\ maximize) it with
+gradient descent, meaning we wish to ``follow'' the gradient direction:
+
+\begin{equation}
+  \Delta w_{i,j}=\eta\frac{\partial S}{\partial w_{i,j}}(x)=\eta\left(\frac{\partial S}{\partial
+    S_i}(x)S_j(x)\right)
+  \label{eq:gradient-update}
+\end{equation}
+
+\autoref{eq:gradient-update} shows the gradient update on a weight $w_{i,j}$, where $\eta$ is the
+learning rate. The weight derivative depends on the derivative of the node in question, which in
+turn depends on the derivative of its parents. It also needs the marginal values of each of the
+node's children as well.
+
+A way to compute the derivatives of each node is shown in~\cite{dspn-talk}. We follow this
+backpropagation algorithm in this document. Instead of computing the derivatives of a node $S_i$ by
+finding the necessary values from its parents first and then computing $\partial S/\partial S_i$,
+in a clear bottom-up approach, we perform a top-down computation on the SPN\@. At each node $S_i$,
+we add the element of the sum of derivatives concerning $S_i$ to the variable that stores the
+derivative of the $\partial S/\partial S_j$, where $S_j\in\Ch(S_i)$. That is, we follow the
+following algorithm:
+
+\begin{enumerate}[label=\arabic*.]
+  \item Select an unvisited node $S_i$ in SPN $S$:
+  \item For each child $S_j$ of $S_i$:
+    \begin{enumerate}[label*=\arabic*.]
+      \item If $S_i$ is a sum node:
+        \begin{enumerate}[label*=\arabic*.]
+          \item $\ddspn{S}{S_j}\gets\ddspn{S}{S_j}+w_{i,j}\ddspn{S}{S_i}(x)$
+          \item $\ddspn{S}{w_{i,j}}\gets S_j(x)\ddspn{S}{S_i}(x)$
+        \end{enumerate}
+      \item Else if $S_i$ is a product node:
+        \begin{enumerate}[label*=\arabic*]
+          \item $\ddspn{S}{S_j}\gets\ddspn{S}{S_j}+\ddspn{S}{S_i}(x)\prod_{S_k\in\Ch_{-S_j}(S_i)}
+            S_k(x)$
+        \end{enumerate}
+    \end{enumerate}
+\end{enumerate}
+
+In this top-down algorithm, we need only to have the marginal values pre-computed before finding
+the derivatives. So in order for us to compute the derivative $\partial S/\partial S_i(x)$ for a
+certain node $S_i$, we need to have all the marginals of its dependencies (i.e.\
+its ancestors) already computed and stored somewhere. We first show an algorithm to compute the
+marginals of all nodes and store them into a dynamic programming table to avoid recomputations. We
+then show a more detailed version of the above algorithm to compute and store all derivatives in
+through dynamic programming. After that, we show a similar algorithm with only minor modifications
+to compute the weight derivatives $\partial S/\partial w_{k,i}(x)$. We separate the process of
+finding the node and weight derivatives, but computing the weight derivative directly after
+computing the node's derivative causes no problems.
 
 \subsection{Expectation-maximization}
 
