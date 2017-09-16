@@ -550,7 +550,8 @@ two data structures: \code{GaussianMixture} and \code{RegionNode}. The former ca
 a sum node with $m$ gaussians, and the latter simply a set of $m$ sum nodes. Let $G$ be an
 m-gaussian node. We assume that $G$ is a sum node with $m$ gaussians as leaves. Additionally, the
 value of $G$ is the value of the sum node, and $G$ itself will be, for simplicity purposes,
-considered a leaf itself.
+considered a leaf itself. The structural algorithms can be found at~\cite{gospn}, under the file
+\code{learn/poon.go}.
 
 \section{Parameter learning}
 
@@ -874,13 +875,19 @@ following algorithm:
 In this top-down algorithm, we need only to have the marginal values pre-computed before finding
 the derivatives. So in order for us to compute the derivative $\partial S/\partial S_i(x)$ for a
 certain node $S_i$, we need to have all the marginals of its dependencies (i.e.\
-its ancestors) already computed and stored somewhere. We first show an algorithm to compute the
-marginals of all nodes and store them into a dynamic programming table to avoid recomputations. We
-then show a more detailed version of the above algorithm to compute and store all derivatives in
-through dynamic programming. After that, we show a similar algorithm with only minor modifications
-to compute the weight derivatives $\partial S/\partial w_{k,i}(x)$. We separate the process of
-finding the node and weight derivatives, but computing the weight derivative directly after
-computing the node's derivative causes no problems.
+its ancestors) already computed and stored somewhere. The algorithm for storing the marginal values
+is simply. Topologically sort the graph of $S$ and for each node compute its marginal value and
+store it into a dynamic programming (DP) table. The topological order guarantees that all
+dependencies will be met, since there are no cycles. For computing the derivatives, we perform a
+breadth-first search (BFS) on the graph and at each node we compute the values described in the
+algorithm above, storing $\iddspn{S}{S_j}$ and $\iddspn{S}{w_{i,j}}$ in a DP matrix. Once we have
+all values, we can apply the gradient update at each node. We do this once again by performing a
+BFS, where at each node $S_i$, we apply to the weight $w_{i,j}$ the weight update $\Delta w_{i,j}$
+described in \autoref{eq:gradient-update}.
+
+The implementation of the derivation algorithms can be found at~\cite{gospn} under the file
+\code{learn/derive.go}. File \code{learn/generative.go} shows an implementation of the generative
+gradient update.
 
 \subsection{Expectation-maximization}
 
