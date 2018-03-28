@@ -10,7 +10,7 @@
 \usepackage{thmtools,thm-restate}
 \usepackage{amsfonts}
 \usepackage{hyperref}
-\usepackage[backend=biber,url=true,doi=true,eprint=false,style=alphabetic]{biblatex}
+\usepackage[backend=biber,url=true,doi=true,eprint=false,style=numeric]{biblatex}
 \usepackage{enumitem}
 \usepackage[justification=centering,singlelinecheck=false]{caption}
 \usepackage{indentfirst}
@@ -101,8 +101,7 @@
 \title{%
   \noindent\rule{13cm}{1.0pt}\\
   \vspace{0.2cm}
-  The Poon-Domingos Parameter Learning Algorithm for Image Completion and Classification on
-  Sum-Product Networks
+  The Poon-Domingos Sum-Product Network Learning Algorithm for Image Completion and Classification
   \noindent\rule{13cm}{0.8pt}
 }
 \xdef\shorttitle{The Poon-Domingos Algorithm}
@@ -112,784 +111,140 @@
 \begin{document}
 
 \begin{abstract}
-  In this document we describe the Poon-Domingos~\cite{poon-domingos} parameter learning algorithm
-  for image classification and completion.
+  In this document we describe the Poon-Domingos~\cite{poon-domingos} learning algorithm for image
+  classification and completion.
   \vspace*{-3.5em}
 \end{abstract}
 
 \maketitle
 
-\section{Structure}
+\section{Introduction}
 
-The Poon-Domingos algorithm uses a fixed structure and then learns the weights through generative
-learning. We first give an overview on how to build the structure given an image and then provide a
-pseudo-code algorithm for building such structure. In this document we assume instances as images.
-However, the Poon-Domingos structure allows for any object with local dependencies.
+Sum-Product Networks (SPNs) are Probabilistic Graphical Models (PGMs) that model a tractable
+probability distribution. Inference is done through a top-down and bottom-up on the graph at most,
+meaning inference is linear wrt its edges. Recent work on SPNs have shown promising results in
+various fields, such as protein folding~\cite{rec-dec-non-convex}, speech
+modelling~\cite{model-speech}, image classification and
+completion~\cite{gens-domingos,poon-domingos,clustering}, activity recognition~\cite{activity} and
+natural language~\cite{nat-lang}. Theoretical also show great results, such as SPNs deep structure
+representational power~\cite{shallow-vs-deep} and a generalization of SPNs to any semiring with
+disjoint product scopes~\cite{sp-theorem}.
 
-\subsection{Overview}
+Although SPNs have shown great promise, current literature on learning algorithms for SPNs is often
+vague and incomplete. This document is part of a series of papers in which we plan on clarifying
+and detailing each learning algorithm. In many cases when the original articles omit certain
+details, we either look for them in the original code (if it is publicly available) or make
+assumptions based on other related articles. When this is the case, we explicitly mention our
+assumptions. We restrict our papers to mostly theoretical findings on the learning algorithms, and
+do not comment on implementation details. However, we give a detailed description on the algorithms
+nonetheless. Throughout this paper, we assume the reader has the necessary background on SPNs and
+has read the original paper~\cite{poon-domingos}.
 
-The Poon-Domingos structure models a probability distribution over a set of variables with local
-dependencies. On the plain, one could argue it models rectangular neighborhoods for each point in
-the space. In the article~\cite{poon-domingos}, Poon and Domingos use images as a dataset, with
-dependencies being rectangular pixel neighborhoods. Images are an example of local dependencies,
-since a pixel has possible dependencies with their neighbors.
+In this paper in particular, we focus on the Poon-Domingos dense structure for image classification
+and completion~\cite{poon-domingos}. We first define a few necessary terms that we shall use
+throughout the paper. Next we give an overview of the dense structure and what our objectives are.
+We then explain the interactions and properties of each component of the structure. Finally we show
+how to learn the weights through hard EM and hard gradient descent.
 
-Dennis and Ventura explain an intuition of how the Poon-Domingos structure algorithm
-works~\cite{clustering}. We expand on this intuition, giving insights on how such an algorithm is
-built and showing a pseudo-code visualization of it. Once we have shown how to build the SPN
-structure, we describe generative learning through gradient descent, and later
-expectation-maximization.
+\section{Definitions}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[scale=1.0]{imgs/dv_spn.png}
-  \captionsetup{justification=raggedright}
-  \caption{The Poon architecture with $r=1$ resolution and $k=1$ sum nodes per region on a
-  2$\times$3 image. At each $r$ resolution axis-aligned rectangular decomposition, we create $k$
-  sum nodes.\cite{clustering}\label{fig:dv_spn}}
-\end{figure}
-
-\subsection{Definitions and properties}
+In this section we define the basic blocks for constructing the Poon-Domingos dense architecture.
 
 \begin{definition}[Region]
-  A Region $\region{R}$ is a rectangular part of an image. Let $p_0=(x_0, y_0)$ and $p_1=(x_1,
-  y_1)$ be the top-left and bottom-right pixels of $\region{R}$ relative to the image. These are
-  called the coordinates of $\region{R}$.
+  A Region $R$ is an ordered set of $m$ (where $m$ is constant) SPN nodes. We shall use the
+  following notation for $R$
+  \begin{equation*}
+    R = (r_1,r_2,\ldots,r_m)
+  \end{equation*}
+  where $r_i$ is the $i$-th node of $R$.
 \end{definition}
 
-\begin{definition}[Region Node]
-  A Region Node $R$ has a one-to-one and onto mapping with a Region $\region{R}$. $R$ has $k$
-  internal nodes associated with it. If $\region{R}$ is over an $r\times r$ set of pixels (i.e.\
-  the atomic unit), then $R$ has $k$ leaf nodes (e.g.\ $k$-mixture of gaussians). Else, $R$ has $k$
-  sum nodes.
+We say $r_i$ is the max node of $R$ when $r_i\geq r_j$, with $1\leq j\leq m$. We shall denote such a
+max node of $R$ as $r^*$. We will use letters $R$, $S$ and $T$ for regions, all with similar
+notations with regard to their nodes.
+
+Our goal is to map a region to a rectangular region of an image, with each unique region
+representing a unique rectangular region of the image. We call $\hat{R}$ the region that
+encompasses the entire image. The region $\hat{R}$ is an exception to the rule in that it only
+contains one sum node, which turns out to be the root node of the SPN\@.
+
+The scope of a region $R$ is the same as the scope of each $r_i$, and is equal to the scope of the
+rectangular region of the image (i.e.\ the set of pixels).
+
+\begin{definition}[Unit Region]
+  A unit region is a region that contains only univariate probability distributions as nodes (e.g.
+  a gaussian).
 \end{definition}
+
+A unit region, in the scope of our image application, represents a pixel. Each node $u_i$ in a unit
+region $U$ is the $i$-th quantile of the distribution of pixel $U$.
 
 \begin{definition}[Decomposition]
-  Let $\region{R}$ be a Region. A Decomposition $\mathcal{D}$ is an axis-aligned partitioning of
-  $\region{R}$ into two Regions $\region{R}_1$ and $\region{R}_2$.
+  A Decomposition $D$ is a tuple
+  \begin{equation*}
+    D = (r, s, t, \pi)
+  \end{equation*}
+  where $r$, $s$ and $t$ are sum nodes belonging to regions $R$ and $S$ respectively and $\pi$ is a
+  product node. A decomposition $D$ exists in an SPN $\mathbf{S}$ if $r$, $s$, $t$, and $\pi$ are
+  nodes of $\mathbf{S}$ and $r\in\Pa(\pi)$, $s,t\in\Ch(\pi)$.
 \end{definition}
 
-The decomposition $\mathcal{D}$ of a Region $\region{R}$ involves a few steps. Let $\region{R}_1$
-and $\region{R}_2$ be the resulting subregions product of the decomposition. The resulting subgraph
-of the SPN $S$ of this decomposition is a DAG $G$. If $\region{R}$ is the entire image, then the
-root of $G$ is a single sum node and $G=S$. Otherwise, then the root of $G$ is a region node and
-thus the root of $G$ is a set of $k$ sum nodes. Let $R$ be the root node of $G$. Region nodes $R_1$
-and $R_2$ will both have $k$ sum nodes (or univariate distributions for leaves). We shall denote as
-$R_i^j$ the $j$-th sum node of region node $i$. For each pairing of sum nodes $(R_1^i, R_2^j)$, we
-create a product node $\pi$ and add $R_1^i$ and $R_2^j$ as children of $\pi$. The set $\Pi$ of
-these product nodes are the decomposition nodes of $\region{R}$ into $\region{R}_1$ and
-$\region{R}_2$.  Once we have created all product nodes in this set, we add all of them as children
-of $R$. If $R$ is a region node, then adding $\Pi$ as children of $R$ means, for every sum node
-$\sigma$ in $R$, set product node $\pi\in\Pi$ as a child of $\sigma$. Each product set $\Pi$ will
-have $\binom{m}{2}$ product nodes, since we take every distinct pairing of sum nodes in $R_1$ and
-$R_2$.
+We say a region $S$ is a subregion of $R$ if there exists a possible decomposition $D=(r,s,t,\pi)$,
+where $r\in R$ and $s\in S$. $R$ is then the parent region of $S$. In our application, the
+subregion $S$ would be a horizontal or vertical partition of region $R$. So a decomposition $D$ of
+subregions $R$, $S$ and $T$ would be taking the parent region $R$ and finding an axis-aligned
+partitioning of $R$ into two subregions $S$ and $T$. The product node $\pi$ would be the
+decomposition of scope of $R$.
 
-\begin{figure}[h]
-  \centering\includegraphics[scale=0.4]{graphs/decomp.png}
-  \caption{A decomposition of a Region $\region{R}$ into two subregions $\region{R}_1$ and
-  $\region{R}_2$. The set $\Pi$ of product nodes are the decomposition nodes that connect the
-  unsplit image to the partitions. Each element $\pi\in\Pi$ connects a pairing of a sum node of
-  $\region{R}_1$ and of $\region{R}_2$.\label{fig:decomp}}
-\end{figure}
+A max decomposition is a decomposition $D^*$ where $D^*=(r^*,s^*,t^*,\pi)$. In our learning
+algorithm, we wish to find max decompositions for each training instance $I$, since this means we
+get the best possible partitioning, maximizing the likelihood.
 
-Since a region node $R$ is unique, we may have different decompositions in which the same region
-appears more than once. For this reason we should create a single Region Node for each possible
-region. We need a map function that takes the top-left and bottom-right pixel positions of a region
-and maps it to a number for storage. Since every region is unique, we need a one-to-one and onto
-function.
+We only consider valid decompositions. That is, if $\Sc(S)\cup\Sc(T)=\Sc(R)$. If this condition is
+not true, then the underlying SPN would not be valid, since it would break consistency.
 
-\begin{definition}[Region map function]
-  A region map function is a function that maps a region into an integer. We define it as
-  \begin{align*}
-    &f:\mathbb{Z}_m\times\mathbb{Z}_n\times\mathbb{Z}_m\times\mathbb{Z}_n\to\mathbb{Z}_{m^2n^2}\\
-    &f(x_1, y_1, x_2, y_2) = ((y_1m+x_1)m+x_2)n+y_2
-  \end{align*}
-  where $x_1,x_2\in\mathbb{Z}_m$ and $y_1,y_2\in\mathbb{Z}_n$.
-\end{definition}
+A resolution $\rho$ is a positive integer representing the level of detail of a decomposition. We
+call a region $R$ a fine region if all possible decompositions of the parent region $R$ have
+$\rho=1$. That is, we are allowed to partition $R$ into every possible axis-aligned rectangular
+region. A region $R$ is a coarse region when we can only decompose $R$ into at most $\rho$-sized
+subregions. In other words, the smallest possible size of $S$ in a possible partition of $R$ with
+$rho>1$ is $\rho\times\rho$. Coarse regions are rectangular regions with size $(x\cdot\rho)\times
+(y\cdot\rho)$, with $x\geq 1$ and $y\geq 1$, but $\neg((x=1)\wedge(y=1))$; fine regions are all
+other rectangular regions smaller then coarse regions with the exception of unit regions. Both
+coarse and fine regions have sum nodes as their internal nodes.
 
-\begin{proposition}
-  The region map function is one-to-one and onto.
-\end{proposition}
-\begin{proof}
-  We first prove $f$ is one-to-one. If $f$ is injective, then $f(x_1,y_1,x_2,y_2) =
-  f(x_1',y_1',x_2',y_2') \implies (x_1,y_1,x_2,y_2)=(x_1',y_1',x_2',y_2')$. Suppose
-  $f(x_1,y_1,x_2,y_2)=f(x_1',y_1',x_2',y_2')$ for some $x_i\in\mathbb{Z}_m$ and
-  $y_i\in\mathbb{Z}_n$. Then we have:
-  \begin{align*}
-    &((y_1m+x_1)m+x_2)n+y_2=((y_1'm+x_1')m+x_2')n+y_2'\\
-    &(m^2y_1+mx_1+x_2)n+y_2=(m^2y_1'+mx_1'+x_2')n+y_2'\\
-    &m^2ny_1+mnx_1+nx_2+y_2=m^2ny_1'+mnx_1'+nx_2'+y_2'\\
-    &m^2n(y_1-y_1')+mn(x_1-x_1')+n(x_2-x_2')+(y_2-y_2')=0
-  \end{align*}
-  But $m,n>0$. Therefore, it is easy to see that $x_i-x_i'=0$ and $y_i-y_i'=0$ is necessary for the
-  equation to hold. Proof of surjection is simple. Since we know $f$ is one-to-one and that
-  $\mathbb{Z}_m\times\mathbb{Z}_n\times\mathbb{Z}_m\times\mathbb{Z}_n$ has the same number of
-  elements as $\mathbb{Z}_{m^2n^2}$, than it follows that $f$ must be onto.
-\end{proof}
+\section{Overview}
 
-Bijection of the region map function is necessary since we need the inverse function $f^{-1}$ to be
-symmetrical to $f$. That is, we must be able to encode a region into a number and later be able to
-find what region a number represents. We define the inverse function of $f$ below.
+The idea of the Poon-Domingos dense structure is to generate an SPN that finds the maximum
+decompositions at each instance of the dataset. In the original paper, Poon and Domingos imply that
+the process of constructing the dense architecture is separate to the learning itself. However, an
+inspection of their code proved this to be false. In fact, learning is intricately coupled to
+generating the dense structure. A general idea of their learning algorithm is as follows.
 
-\begin{definition}[Inverse region map function]
-  The inverse of the region map function is given by the decomposition of an integer
-  $r\in\mathbb{Z}_{m^2n^2}$ into a tuple $(x_1,y_1,x_2,y_2)\in\mathbb{Z}_m\times\mathbb{Z}_n\times
-  \mathbb{Z}_m\mathbb{Z}_n$. Let $g=f^{-1}$. We define $g$ as an algorithm as follows
-  \begin{algorithm}[H]
-    \caption{\normalfont{Function \code{Encode} $\coloneqq f^{-1} = g$}}
-    \begin{algorithmic}[1]
-      \normalfont%
-      \Require\,$r\in\mathbb{Z}_{m^2n^2}$
-      \Ensure\,$(x_1,y_1,x_2,y_2)\in\mathbb{Z}_m\times\mathbb{Z}_n\times\mathbb{Z}_m\times\mathbb{Z}_n$
-      \State\,$y_2\gets i \mod n$
-      \State\,Let $c\in\mathbb{Z}_{m^2n^2}$
-      \State\,$c\gets\frac{(r-y_2)}{n}$
-      \State\,$x_2\gets c \mod m$
-      \State\,$c\gets\frac{c-x_2}{m}$
-      \State\,$x_1\gets c \mod m$
-      \State\,$y_1\gets\frac{c-x_1}{w}$
-      \State\,\textbf{return} $(x_1,y_1,x_2,y_2)$
-    \end{algorithmic}
-  \end{algorithm}
-\end{definition}
+Create every possible region of the image (i.e.\ every rectangular region of the image). For each
+unit region, create each $i$-th leaf node as a gaussian of the $i$-th quantile of the pixel. For
+each instance $I$ of the dataset, find all max decompositions for each region wrt $I$ and store
+them. For all these decompositions, if they already exist, increase weights of the corresponding
+edges; else create a new decomposition with weights zeroed. Repeat this maximization until
+convergence. Once converged, remove all parentless non-root nodes or any component of the graph
+that cannot be reached by the root node.
 
-\subsection{Structural algorithm}
+One might conjecture whether one could simply create all possible decompositions instead of
+maximizing, and then running a parameter learning algorithm. We tested this conjecture through hard
+gradient descent, and found out that, due to the nature of MAP inference and the number of
+decompositions, the Viterbi-style learning algorithm always took the shortest path, giving
+preference to small, long regions. This caused the image to become an average of all training
+instances with small regions colored oddly.
 
-We now show how to construct the Poon-Domingos architecture given an image $I$ (which is equivalent
-to a Region consisting of the entire image), resolution $r$ and $m$ sum nodes per region.
+Running the Poon-Domingos version, where we maximize decompositions at each instance of the dataset
+yielded much better results.
 
-The algorithm, as summarized in the last subsection, can be constructed recursively. However we
-avoid this technique in favor of an iterative version, which uses less memory. We must first do a
-preprocessing of Regions. We iterate over all possible subrectangles in $I$, create a Region for
-each of them and assign an identification number to it. This number is the value of the region map
-function given the region's position. We name the region map function as \code{Encode} that takes a
-region position and returns a non-negative integer. Similarly, we name the inverse function of
-\code{Encode} as \code{Decode} that takes a non-negative integer and returns a region position.
+\section{Structure}
 
-We denote by $[\region{R}]$, where $\region{R}$ is a region, a function that returns a pair of
-positive integers that represent the width and height of $\region{R}$. Once we have constructed all
-possible regions, we iterate over all possible decompositions according to the following steps:
 
-\begin{enumerate}[label=\arabic*.]
-  \item\label{start-label} Select each possible region $\region{R}$ in image $I$
-  \item If $\region{R} = I$, then $R$ is a sum node and is root
-  \item Else if $R$ contains only gaussians, skip this region
-  \item Else, $R$ exists and is a set of sum nodes
-  \item Partition $\region{R}$ into a pairing of subregions $\region{R}_1$ and $\region{R}_2$
-  \item For each subregion $\region{R}_i$
-    \begin{enumerate}[label*=\arabic*.]
-      \item Let $(w, h) \gets \region{R}_i$
-      \item If $w > r$ and $h > r$ then region node $R_i$ must be a set of $m$ gaussians
-      \item Else, region node $R_i$ must be a set of $m$ sum nodes
-    \end{enumerate}
-  \item Create a set $\Pi$ of product nodes
-  \item For each pair $(R_1^i, R_2^j)$, where $R_p^q$ is the inner node $q$ of subregion node $R_p$
-    \begin{enumerate}[label*=\arabic*.]
-      \item Create a product node $\pi$ and add it to set $\Pi$
-      \item Add $R_1^i$ and $R_2^j$ as children of $\pi$
-      \item Add $\pi$ as child of all inner sum nodes of $R$
-    \end{enumerate}
-  \item Go to step~\ref{start-label}
-\end{enumerate}
+\section{Acknowledgements}
 
-\begin{algorithm}[H]
-  \caption{\code{CreateRegions}}\label{alg:createregions}
-  \begin{algorithmic}[1]
-    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
-    \Require\,Dataset $\mathcal{D}$
-    \Require\,Integer $m$ as number of components in each Region
-    \Require\,Integer $r$ as resolution
-    \Ensure\,A list $\mathcal{L}$ of Nodes indexed by their region map function value
-    \State\,Let $n=w\cdot h$
-    \For{$i\gets 0..(n-1)$}
-      \State\,$x_1\gets i\mod w$
-      \State\,$y_1\gets i/w$
-      \For{$x_2\gets (w-1)..x_1$ decreasingly}
-        \For{$y_2\gets (h-1)..y_1$ decreasingly}
-          \If{$x_1=0$ and $y_1=0$ and $x_2=w-1$ and $y_2=h-1$}
-            \LineComment{The entire image is the root sum node}
-            \State\,$j\gets$\mcode{Encode$(x_1,y_1,x_2,y_2)$}
-            \State\,$\mathcal{L}[j]\gets$\mcode{SumNode$()$}
-            \LineComment{\code{SumNode} returns a sum node}
-          \EndIf%
-          \State\,Let $R$ be a new Region node\label{alg:createregions-mk1}
-          \State\,Let $d_x=x_2-x_1$ and $d_y=y_2-y_1$
-          \If{$d_x < r$ or $d_y < r$}
-            \State\,$x\gets\max(x_1+r,x_2)$
-            \State\,$y\gets\max(y_1+r,y_2)$
-            \State\,$r\gets$\mcode{Encode$(x_1,y_1,x,y)$}
-            \State\,$R\gets\mathcal{L}[r]$\label{alg:createregions-mk2}
-          \ElsIf{$d_x = r$ and $d_y = r$}
-            \State\,$R\gets$\mcode{GaussianMixture$(x_1, y_1, x_2, y_2, D, m)$}
-            \LineComment{\code{GaussianMixture} returns a node containing $m$ gaussians}
-          \Else%
-            \State\,$R\gets$\mcode{RegionNode$(m)$}
-            \LineComment{\code{RegionNode} returns a node containing $m$ sum nodes}
-          \EndIf%
-          \State\,$j\gets$\mcode{Encode$(x_1,y_1,x_2,y_2)$}
-          \State\,$\mathcal{L}[j]\gets R$
-        \EndFor%
-      \EndFor%
-    \EndFor%
-    \State\,\textbf{return} $\mathcal{L}$
-  \end{algorithmic}
-\end{algorithm}
-
-The structural algorithm is almost complete. The main object of interest now is on finding all
-possible regions in an image. Consider the matrix $M_{n\times m}$ as the image representation of
-$I$ indexed by 0. Then we can find all possible regions by iteration over every top-left position
-$(x,y)$ and for each of these positions iterating over all bottom-right pixels $(x+p,y+q), 0\leq
-p<n, 0\leq q<m$.
-
-We assume a dataset $\mathcal{D}$ where each instance $\mathcal{D}[X]$ gives an ordered sequence of
-integers corresponding to the image pixels in expanded form. Let $R$ be a region, $(x_1,y_1)$ be
-its top-left position and $(x_2,y_2)$ its bottom-right position. We call $(x_1,y_1,x_2,y_2)$ the
-coordinates of $R$.
-
-\begin{proposition} Let $R_1$ be the region in Line~\ref{alg:createregions-mk1} in function
-  \code{CreateRegions}.  Line~\ref{alg:createregions-mk2} always yields a region $R_2$ that has
-  already been previously created.
-\end{proposition}
-\begin{proof}
-  Let $(x_1,y_1)$ be $R_1$'s top-left position. We fix $x_2\geq x_1+r$. The third \code{for} loop
-  in \code{CreateRegions} yields a decreasing sequence from $h-1$ to $y_1$. So for each $y_2$ in
-  this ordered sequence, the previous instance will have already been computed. It then follows
-  that for every $y_2=y_1+r-k$, $0\leq k\leq r$, it is true that $y_1+r$ has already been computed.
-  We do the same for $x_2$ by fixing $y_2\geq y_1+r$. When both $x_2<x_1+r$ and $y_2<y_1+r$, we
-  fall into the previous subcases.
-\end{proof}
-
-\begin{algorithm}[h]
-  \caption{\code{Structure}}\label{alg:structure}
-  \begin{algorithmic}[1]
-    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
-    \Require\,Dataset $\mathcal{D}$
-    \Require\,Integer $m$ as number of components in each Region
-    \Require\,Integer $r$ as resolution
-    \Ensure\,An SPN $S$ containing the learned structure from image $I$
-    \State\,$\mathcal{L}\gets$\mcode{CreateRegions$(w, h, D, m, r)$}
-    \For{each key and value pair $(k,R)$ in $\mathcal{L}$}
-      \If{$k = s$}
-        \State\,\textbf{skip}
-      \EndIf%
-      \State\,$(x_1,y_1,x_2,y_2)\gets$ \mcode{Decode$(k)$}
-      \State\,\mcode{LeftQuadrant$(x_1,y_1,x_2,y_2,m,\mathcal{L})$}
-      \State\,\mcode{BottomQuadrant$(x_1,y_1,x_2,y_2,m,\mathcal{L})$}
-    \EndFor%
-    \State\,$s\gets$\mcode{Encode$(0,0,w-1,h-1)$}
-    \State\,$S\gets\mathcal{L}[s]$
-    \LineComment{$S$ is the root node}
-    \State\,\textbf{return} $S$
-  \end{algorithmic}
-\end{algorithm}
-
-Next, we clarify functions \mcode{LeftQuadrant} and \mcode{BottomQuadrant}. Recall the algorithm
-outline we listed earlier. For each decomposition of a region into two subregions, we must create a
-set of product nodes whose internal products nodes are connected the two distinct subregion
-internal nodes. Let $R$ be a region. Our goal is to find the parent regions of $R$. In other words,
-we must find all possible decompositions in which $R$ is one of the two disjoint subregions. Since
-we only take axis-aligned decompositions into account, we can represent all possible decompositions
-of $R$ as tightly-bound subrectangles.
-
-\begin{figure}[h]
-  \centering
-  \begin{tikzpicture}
-    \draw[thick] (0,0)
-      -- (8, 0) node[right,fill=white] {$(w-1,h-1)$}
-      -- (8, 6)
-      -- (0, 6) node[left,fill=white] {$(0,0)$}
-      -- cycle;
-    \draw (2,0) -- (2,5) -- (6,5) -- (6,0) -- cycle;
-    \draw (0,5) -- (6,5) -- (6,1) -- (0,1) -- cycle;
-    \draw (2,6) -- (2,1) -- (6,1) -- (6,6) -- cycle;
-    \draw (8,1) -- (2,1) -- (2,5) -- (8,5) -- cycle;
-    \draw (4,3) node {$R_1$};
-    \draw (1,3) node {$[R_L^1,\ldots,R_L^p]$};
-    \draw (7,3) node {$[R_R^1,\ldots,R_R^q]$};
-    \draw (4,5.5) node {$[R_T^1,\ldots,R_T^r]$};
-    \draw (4,0.5) node {$[R_B^1,\ldots,R_B^s]$};
-    \draw (2,5) node[fill=white] {$(x_1,y_1)$};
-    \draw (6,1) node[fill=white] {$(x_2,y_2)$};
-  \end{tikzpicture}
-  \captionsetup{justification=raggedright}
-  \caption{Given a decomposition of a region into two subregions, where one of them is $R_1$, we
-  can find any possible complementary regions of $R_1$ by searching each quadrant. The image above
-  shows all possible decompositions containing $R_1$, where the set $[R_Q^1,\ldots,R_Q^m]$, where
-  $Q$ is a quadrant, contains all complementary regions of $R_1$ in the direction of $Q$. A
-  decompositon is two regions $R_1$ and $R_Q^i$.}
-\end{figure}
-
-To find all the decompositions that contains a region $R_1$, we take each possible quadrant (we
-name them $\{L,R,T,B\}$ for Left, Right, Top and Bottom) and then take all possible $R_Q^i$ region,
-where $Q$ is the quadrant and $i$ the $i$-th region in $Q$. It suffices to find decompositions from
-$L$ and $B$, as we will eventually do the same for the complementary region of $R_1$, which will
-account for the $R$ and $T$ quadrants.
-
-\begin{figure}[h]
-  \centering
-  \begin{tikzpicture}
-    \draw (0,0) -- (0,4) -- (2,4) -- (2,0) -- cycle;
-    \draw[thick] (2,0) -- (2,4) -- (6,4) -- (6,0) -- cycle;
-    \draw (1,2) node {$R_2$};
-    \draw (4,2) node {$R_1$};
-    \draw (1,0) node[anchor=north] {$(0,y_2),\ldots,(x_1-1,y_2)$};
-    \draw (1,4) node[anchor=south] {$(0,y_1),\ldots,(x_1-1,y_1)$};
-    \draw (2,4) node[anchor=north west] {$(x_1,y_1)$};
-    \draw (2,0) node[anchor=south west] {$(x_1,y_2)$};
-    \draw (6,4) node[right] {$(x_2,y_1)$};
-    \draw (6,0) node[right] {$(x_2,y_2)$};
-  \end{tikzpicture}
-  \captionsetup{justification=raggedright}
-  \caption{The left quadrant. Region $R_2$ is the complementary region of $R_1$ and can take any
-  coordinates $(x',y_1,x_1,y_2)$, where $0\leq x'\leq x_1-1$.\label{fig:left-quadrant}}
-\end{figure}
-
-\autoref{fig:left-quadrant} shows a decomposition that contains subregions $R_1$ and $R_2$. Let
-$(x_1,y_1,x_2,y_2)$ be the coordinates to $R_1$. We have $x_1$ subregions $R_2$ that are possible
-decompositions with $R_1$. Similarly for~\autoref{fig:bottom-quadrant}, we have $y_1$ possible
-subregions $R_2$. Consider the left quadrant. If $R_1$ switches place with $R_2$, it becomes clear
-that we now have the right quadrant. Similarly for the bottom quadrant, by switching $R_1$ and
-$R_2$, we have the top quadrant. This means our previous assumption that it is enough to take the
-left and bottom quadrant is correct.
-
-\begin{figure}[h]
-  \centering
-  \begin{tikzpicture}
-    \draw (0,0) -- (0,5) -- (4,5) -- (4,0) -- cycle;
-    \draw[thick] (0,0) -- (0,4) -- (4,4) -- (4,0) -- cycle;
-    \draw (2,4.5) node {$R_2$};
-    \draw (2,2) node {$R_1$};
-    \draw (0,0) node[left] {$(x_1,y_2)$};
-    \draw (4,0) node[right] {$(x_2,y_2)$};
-    \draw (0,4) node[anchor=north west] {$(x_1,y_1)$};
-    \draw (4,4) node[anchor=north east] {$(x_2,y_1)$};
-    \draw (0,4.5) node[left] {$(x_1,0),\ldots,(x_1,y_1-1)$};
-    \draw (4,4.5) node[right] {$(x_2,0),\ldots,(x_2,y_1-1)$};
-  \end{tikzpicture}
-  \captionsetup{justification=raggedright}
-  \caption{The bottom quadrant. Region $R_2$ is the complementary region of $R_1$ and can take any
-  coordinates $(x_1,y',x_2,y_1)$, where $0\leq y'\leq y_1-1$.\label{fig:bottom-quadrant}}
-\end{figure}
-
-At each pairing of subregions $R_1$ and $R_2$ in each quadrant $Q$, we must create a set of product
-nodes $\Pi$ and connect the parent region $R=R_1\cup R_2$ to all the internal product nodes of
-$\Pi$. We now define functions \code{LeftQuadrant} and \code{BottomQuadrant}. Both functions are
-similar, and the only difference is for the left quadrant we iterate horizontally searching for
-subregions complementary to $R_1$. In the bottom quadrant, we iterate vertically searching for the
-complementaries.
-
-\begin{algorithm}[h]
-  \caption{\code{LeftQuadrant}}\label{alg:leftquadrant}
-  \begin{algorithmic}[1]
-    \Require\,Coordinates $(x_1,y_1,x_2,y_2)$ of region $R_1$
-    \Require\,Integer $m$ number of components
-    \Require\,Node map $\mathcal{L}$
-    \For{$x\gets 0..(x_1-1)$}
-      \State\,$R_2\gets \mathcal{L}[$\mcode{Encode$(x,y_1,x_1,y_2)$}$]$
-        \Comment{$R_2$ is the complementary region of $R_1$}
-      \State\,$R\gets\mathcal{L}[$\mcode{Encode$(x,y_1,x_2,y_2)$}$]$
-        \Comment{$R$ is the parent region (i.e.\ $R=R_1\cup R_2$)}
-      \For{$i\gets 1..m$}
-        \For{$j\gets 1..m$}
-          \State\,$\pi\gets$ \mcode{ProductNode$()$}
-          \State\,\mcode{$\pi$.AddChild$(R_1^i)$}, \mcode{$\pi$.AddChild$(R_2^j)$}
-          \If{$R$ is a Region node}
-            \For{$l\gets 1..m$}
-              \State\,\mcode{$R^l$.AddChild$(\pi)$}
-            \EndFor%
-          \Else\Comment{$R$ is a sum node and is the entire image}
-            \State\,\mcode{$R$.AddChild$(\pi)$}
-          \EndIf%
-        \EndFor%
-      \EndFor%
-    \EndFor%
-  \end{algorithmic}
-\end{algorithm}
-
-\begin{algorithm}[h]
-  \caption{\code{BottomQuadrant}}\label{alg:bottomquadrant}
-  \begin{algorithmic}[1]
-    \Require\,Coordinates $(x_1,y_1,x_2,y_2)$ of region $R_1$
-    \Require\,Integer $m$ number of components
-    \Require\,Node map $\mathcal{L}$
-    \For{$y\gets 0..(y_1-1)$}
-      \State\,$R_2\gets\mathcal{L}[$\mcode{Encode$(x_1,y,x_2,y_1)$}$]$
-        \Comment{$R_2$ is the complementary region of $R_1$}
-      \State\,$R\gets\mathcal{L}[$\mcode{Encode$(x_1,y,x_2,y_2)$}$]$
-        \Comment{$R$ is the parent region (i.e.\ $R=R_1\cup R_2$)}
-      \For{$i\gets 1..m$}
-        \For{$j\gets 1..m$}
-          \State\,$\pi\gets$ \mcode{ProductNode$()$}
-          \State\,\mcode{$\pi$.AddChild$(R_1^i)$}, \mcode{$\pi$.AddChild$(R_2^j)$}
-          \If{$R$ is a Region node}
-            \For{$l\gets 1..m$}
-              \State\,\mcode{$R^l$.AddChild$(\pi)$}
-            \EndFor%
-          \Else\Comment{$R$ is a sum node and is the entire image}
-            \State\,\mcode{$R$.AddChild$(\pi)$}
-          \EndIf%
-        \EndFor%
-      \EndFor%
-    \EndFor%
-  \end{algorithmic}
-\end{algorithm}
-
-In both functions, we are taking region partitions $R_1$ and $R_2$, getting the parent region $R$,
-which is equivalent to getting the union of $R_1$ and $R_2$, and then iterating over all possible
-2-combinations of internal nodes of $R_1$ and $R_2$. We then add all product nodes as children of
-$R$'s internal sum nodes. If $R$ is a single regular sum node, then we have reached the root node,
-and it is sufficient to simply add the product nodes as children of $R$, since $R$ has no internal
-nodes.
-
-In this structural algorithm we do not mention edge weights. However we could have initialized
-weights randomly (in the $[0,1]$ range), set all weights to zero or set them to a uniform
-distribution. We talk about weight learning in more depth in the next section.
-
-We now have most of the structural algorithm formally defined. However, we have not clearly defined
-two data structures: \code{GaussianMixture} and \code{RegionNode}. The former can be thought of as
-a sum node with $m$ gaussians, and the latter simply a set of $m$ sum nodes. Let $G$ be an
-m-gaussian node. We assume that $G$ is a sum node with $m$ gaussians as leaves. Additionally, the
-value of $G$ is the value of the sum node, and $G$ itself will be, for simplicity purposes,
-considered a leaf itself. The structural algorithms can be found at~\cite{gospn}, under the file
-\code{learn/poon.go}.
-
-\section{Parameter learning}
-
-The~\cite{poon-domingos} article mentions two ways of weight updating, gradient descent (GD)
-through backpropagation and expectation-maximization (EM). Both suffer from the gradient diffusion
-problem, that is, for deep structures, the signal fades away as we go down layers, reaching zero in
-a few steps.  This is countered by using a hard version based on the MAP states instead of marginal
-inference. For each weight update algorithm, we first show the soft version using marginal
-inference, and then show the hard version using MAP inference. Both algorithms can be applied the
-same way in the master learning algorithm from~\cite{poon-domingos} shown below.
-
-\begin{algorithm}[h]
-  \caption{\code{LearnSPN}}\label{alg:learnspn}
-  \begin{algorithmic}[1]
-    \Require\,A pair $(w,h)$ representing the image $I$ dimensions
-    \Require\,Dataset $\mathcal{D}$
-    \Require\,Integer $m$ as number of components in each Region
-    \Require\,Integer $r$ as resolution
-    \Ensure\,An SPN with learned weights
-    \State\,$S\gets$ \mcode{Structure$(w,h,\mathcal{D},m,r)$}
-    \State\,\mcode{InitializeWeights$(S)$}
-    \Repeat%
-      \State\,\mcode{UpdateWeights$(S,\mathcal{D})$}
-    \Until{convergence}
-    \State\,$S\gets$ \mcode{PruneZeroWeights$(S)$}
-    \State\,\textbf{return} $S$
-  \end{algorithmic}
-\end{algorithm}
-
-Weight initialization, as mentioned in the previous section, can be done either through
-randomization in the unit interval, a uniformed distribution or all weights set to zero.
-
-Pruning zero weights is done by recursively removing edges that have zero weights. Then, while
-there exists non-root parentless nodes, remove each of them.
-
-\begin{algorithm}[h]
-  \caption{\code{PruneZeroWeights}}\label{alg:prunezeroweights}
-  \begin{algorithmic}[1]
-    \Require\,An SPN $S$
-    \Ensure\,The resulting SPN after pruning
-    \State\,Let $Q$ be a queue data structure
-    \State\,Let $T$ be a stack data structure
-    \State\,Let $V$ be a list of booleans, where $V[i]$ is true if node $i$ has already been
-      visited
-    \State\,Let $L$ be an adjacency list where $L[i]$ contains a list of nodes
-    \State\,\mcode{$Q$.Enqueue$(S)$}, \mcode{$T$.Push$(S)$}
-    \State\,$V[S]\gets\textbf{true}$, $L[S]\gets[\,]$
-    \algstore{prunezeroweights}
-  \end{algorithmic}
-\end{algorithm}
-\begin{algorithm}[h]
-  \begin{algorithmic}[1]
-    \algrestore{prunezeroweights}
-    \For{each child $c$ of $S$}
-      \State\,\mcode{$L[c]$.Add$(S)$}
-    \EndFor%
-    \While{\textbf{not} \mcode{$Q$.Empty$()$}}
-      \State\,$s\gets$ \mcode{$Q$.Dequeue$()$}
-      \For{each child $c$ of $s$}
-        \State\,\mcode{$L[c]$.Add$(s)$}
-        \If{\textbf{not} $V[c]$}
-          \State\,\mcode{$Q$.Enqueue$(c)$}, \mcode{$T$.Push$(c)$}
-          \State\,$V[c]\gets\textbf{true}$
-        \EndIf%
-      \EndFor%
-    \EndWhile%
-    \State\,Let $M$ be a map where $M[i]$ is true if node $i$ is marked for deletion.
-    \While{\textbf{not} \mcode{$T$.Empty$()$}}
-      \State\,$s\gets$ \mcode{$T$.Dequeue$()$}
-      \If{$s$ is a sum node}
-        \For{each edge $e_{s,i}$ in $s$}
-          \If{$w_{s,i}=0$}
-            \State\,Delete edge $e_{s,i}$
-            \State\,\mcode{$L[i]$.Remove$(s)$}
-            \State\,\mcode{RecursivelyDeleteOrphans$(i,L,M)$}
-          \EndIf%
-        \EndFor%
-      \EndIf%
-    \EndWhile%
-    \For{each key value pair $(s,e)$ in $M$}
-      \If{$e = \textbf{true}$}
-        \State\,Delete node $s$ from $S$
-      \EndIf%
-    \EndFor%
-    \State\,\textbf{return} $S$
-  \end{algorithmic}
-\end{algorithm}
-
-We denote $e_{i,j}$ as an edge that goes from node $i$ to node $j$. We denote $w_{i,j}$ as the
-weight value of edge $e_{i,j}$. In~\autoref{alg:prunezeroweights}, we traverse the graph of SPN $S$
-in a bottom-up fashion. We run through the graph this particular way to avoid recomputations.  By
-going bottom-up, at every zero weight edge of a sum node $s$ we encounter, we can guarantee that
-there are no zero edges on the descendants of $s$. In function \code{PruneZeroWeights}, we first
-store a copy of the graph through an adjacency list $L$. List $L$ stores the parents of a node $i$.
-That is, for every entry $L[i]$, where $i$ is a node, $L[i]$ is a list of parent nodes of $i$. We
-only need to account for sum nodes, as they are the only type of node who have weights on their
-outgoing edges. Once we start iterating over every sum node $s$, we check each outgoing edge of
-$s$. If we find a zero weight edge, we first delete such edge from $S$, remove $s$ as a parent from
-the copied graph adjacency list $L$ and run function \code{RecursivelyDeleteOrphans}. This function
-will delete every descendant of $s$ that has no parent nodes. Since we traverse the graph
-bottom-up, we guarantee that at every call of \code{RecursivelyDeleteOrphans}, there exists no zero
-weight edge in the graph scope of the function. Therefore, it suffices to recursively delete orphan
-nodes.
-
-\autoref{alg:recursivelydeleteorphans} simply performs a breadth-first search on the given sub-SPN,
-searching for any orphan nodes according to list $L$. When it finds such a node $s$, it marks $s$
-for deletion and removes $s$ as parent of its children. Then, it does the same for all children of
-$s$.
-
-\begin{algorithm}[h]
-  \caption{\code{RecursivelyDeleteOrphans}}\label{alg:recursivelydeleteorphans}
-  \begin{algorithmic}[1]
-    \Require\,An SPN $S$
-    \Require\,$L$ adjacency list from \code{PruneZeroWeights}
-    \Require\,$M$ map to mark node deletion
-    \State\,Let $Q$ be a queue data structure
-    \State\,\mcode{$Q$.Enqueue$(S)$}
-    \While{\textbf{not} \mcode{$Q$.Empty$()$}}
-      \State\,$s\gets$ \mcode{$Q$.Dequeue$()$}
-      \If{\mcode{$L[s]$.Empty$()$}}
-        \State\,$M[s]=\textbf{true}$
-        \For{each child $c$ of $s$}
-          \State\,\mcode{$L[c]$.Remove$(s)$}
-        \EndFor%
-        \For{each child $c$ of $s$}
-          \State\,\mcode{$Q$.Enqueue$(c)$}
-        \EndFor%
-      \EndIf%
-    \EndWhile%
-  \end{algorithmic}
-\end{algorithm}
-
-Function \code{UpdateWeights} is what determines whether the algorithm uses gradient descent of
-expectation-maximization. In the next subsections we detail on how to perform generative parameter
-learning using the two techniques.
-
-\subsection{Gradient descent}
-
-Computing the gradient descent requires first finding the derivatives of each node in the SPN\@. We
-show the derivatives as they appear in~\cite{poon-domingos}. Note that these definitions assume a
-certain particular SPN structure. Namely that the SPN is composed of alternating layers of sum and
-product nodes.
-
-We denote by $\Pa(i)$ the set of parents of a node $i$ and by $\Ch(i)$ the set of children.
-Additionally, we use the following notation $T_{-i}\coloneqq T\setminus\{i\}$, where $T$ is a set
-and $i$ an element of $T$.
-
-\begin{definition}[Sum node derivative]\label{def:sumdiff}
-  Let $S$ be an SPN and $S_i$ a non-root sum node in $S$. By assumption, all parents of $S_i$ are
-  product nodes. The derivative of $S$ wrt $S_i$ is given by
-  \begin{equation*}
-    \frac{\partial S}{\partial S_i}(x) = \sum_{S_k\in\Pa(S_i)}\left(\frac{\partial S}{\partial
-    S_k}(x) \right)\prod_{S_l\in\Ch_{-S_i}(S_k)} S_l(x).
-  \end{equation*}
-\end{definition}
-
-\begin{definition}[Product node derivative]\label{def:productdiff}
-  Let $S$ be an SPN and $S_i$ a non-root product node in $S$. By assumption, all parents of $S_i$
-  are sum nodes. The derivative of $S$ wrt $S_i$ is given by
-  \begin{equation*}
-    \frac{\partial S}{\partial S_i}(x) = \sum_{S_k\in\Pa(S_i)} w_{S_k,S_i}\frac{\partial
-    S}{\partial S_k}(x)
-  \end{equation*}
-\end{definition}
-
-As we have mentioned earlier, Poon and Domingos assume that all parents of products are sums, and
-all parents of sums are products. We show next that the differentiation results do not change when
-a sum has an arbitrary number of sum nodes as parents, or when a product has products as parents.
-
-To prove this result, we must first show that, given an arbitrary structure (i.e.\ a node can
-have any type of node as parent), we can modify such structure to fit the alternating layers
-structure.
-
-\begin{lemma}\label{lemma:diffsum} Let $S$ be an SPN and $S_i$ a non-root sum node of $S$ where $n$
-  parents of $S_i$ are sum nodes and $m$ parents of $S_i$ are product nodes. The derivative of $S$
-  wrt $S_i$ is given by \autoref{def:sumdiff}.
-\end{lemma}
-\begin{proof}
-  From the hypothesis we have that the sub-SPN composed solely of $S_i$ and its parents is given by
-  \autoref{fig:lemma-diffsum-1}.
-  \begin{figure}[h]
-    \centering\includegraphics[scale=0.5]{graphs/lemma-diffsum-1.png}
-    \caption{$S_i$ has $m$ product parents and $n$ sum parents. It has an arbitrary
-    structure because of sum parents.}\label{fig:lemma-diffsum-1}
-  \end{figure}
-  We can modify such a structure with no change in the value of $S$ by adding a single product node
-  as child of each sum parent and then connecting it to $S_i$, as shown in
-  \autoref{fig:lemma-diffsum-2}.
-  \begin{figure}[h]
-    \centering\includegraphics[scale=0.5]{graphs/lemma-diffsum-2.png}
-    \caption{We add the set $\Pi$ of product nodes between $S_i$ and $\sigma_1,\ldots,\sigma_n$.
-      This does not change the value of the SPN.}\label{fig:lemma-diffsum-2}
-  \end{figure}
-  $S$ has no change in value because every node $\sigma_j$ has no change in its value, as we show
-  next. The value of $\sigma_j$ in \autoref{fig:lemma-diffsum-1} is
-  \begin{equation*}
-    \sigma_j(x)=\sum_{k\in\Ch(\sigma_j)} w_{\sigma_j,k}k(x)=w_j S_i+\sum_{k\in\Ch_{-S_i}(\sigma_j)}
-      w_{\sigma_j,k}k(x).
-  \end{equation*}
-  The value of $\sigma_j$ in \autoref{fig:lemma-diffsum-2}, which we shall rename to $\sigma_j'$ is
-  given by the expression
-  \begin{equation*}
-    \sigma_j'(x)=\sum_{k\in\Ch(\sigma_j')} w_{\sigma_j',k}k(x)=w_j \pi_j(x)+\sum_{k\in\Ch_{-\pi_j}
-      (\sigma_j')}w_{\sigma_j',k}k(x).
-  \end{equation*}
-  But $\pi_j(x)=S_i(x)$, therefore:
-  \begin{equation*}
-    \sigma_j'(x)=w_j S_i(x)+\sum_{k\in\Ch_{-\pi_j}(\sigma_j')}w_{\sigma_j',k}k(x)=w_j
-    S_i(x)+\sum_{k\in\Ch_{-S_i}(\sigma_j)} w_{\sigma_j,k}k(x)=\sigma_j(x)
-  \end{equation*}
-  We now need to verify that the derivatives do not change either. We know that for all $S_i$
-  parents, the differentials do not change, since they take their values from their parents. So it
-  suffices to show only that the differential at $S_i$ does not change. After applying the
-  structure transformation from \autoref{fig:lemma-diffsum-2}, we now have all parents of $S_i$ as
-  products. From that we have that the derivative is given by
-  \begin{equation}
-    \begin{split}
-    \frac{\partial S}{\partial S_i}(x)
-      &=\sum_{S_k\in\Pa(S_i)}\frac{\partial S}{\partial S_k}(x)\prod_{S_l\in\Ch_{-S_i}(S_k)}
-        S_l(x)\\
-      &=\sum_{j=1}^n\frac{\partial S}{\partial\pi_j}(x)\prod_{S_l\in\Ch_{-S_i}(\pi_j)}S_l(x)+
-        \sum_{j=1}^n\frac{\partial S}{\partial Z_j}(x)\prod_{S_l\in\Ch_{-S_i}(Z_j)}S_l(x)\\
-      \label{eq:lemma-diffsum-eq}
-    \end{split}
-  \end{equation}
-  Where we named nodes $Z_j$ as the product nodes of $S_i$ that are not in the $\Pi$ set. Our
-  claim is that, for each $\pi_i$, its differential is the same as $\sigma_i$. If we show this
-  claim to be true, than $\partial S/\partial S_i(x)$ must be the same as the one in the original
-  structure. From the definition, $\partial S/\partial \pi_i(x)=\partial S/\partial \sigma_i(x)$.
-  Applying this on \autoref{eq:lemma-diffsum-eq}, we have
-  \begin{equation*}
-    \frac{\partial S}{\partial S_i}(x)=\sum_{j=1}^n\frac{\partial S}{\partial\sigma_j}(x)\prod_{S_l
-      \in\Ch_{-S_i}(\pi_j)}S_l(x)+ \sum_{j=1}^n\frac{\partial S}{\partial Z_j}(x)\prod_{S_l\in
-      \Ch_{-S_i}(Z_j)}S_l(x)
-  \end{equation*}
-  Which is exactly the derivative of the original SPN without the structure modification.
-\end{proof}
-
-\begin{lemma}\label{lemma:diffproduct} Let $S$ be an SPN and $S_i$ a non-root product node of $S$ where
-  $n$ parents of $S_i$ are sum nodes and $m$ parents of $S_i$ are product nodes. The derivative of
-  $S$ wrt $S_i$ is given by \autoref{def:productdiff}.
-\end{lemma}
-\begin{proof}
-  The proof goes exactly like the previous proof, but on with the structure alterations depicted in
-  \autoref{fig:lemma-diffproduct-2}. \autoref{fig:lemma-diffproduct-1} shows the structure before
-  the transformation.
-  \begin{figure}[h]
-    \centering\includegraphics[scale=0.5]{graphs/lemma-diffproduct-1.png}
-    \caption{Node $S_i$ and its parents.}\label{fig:lemma-diffproduct-1}
-  \end{figure}
-  \begin{figure}[h]
-    \centering\includegraphics[scale=0.5]{graphs/lemma-diffproduct-2.png}
-    \caption{The above SPN with the modified structure.}\label{fig:lemma-diffproduct-2}
-  \end{figure}
-  Similar to sum case, it is easy to prove that the SPN has no change in value and that the
-  derivative of each parent of $S_i$ remains the same. From that, we then apply the definition of
-  derivative of a product node and show that it does not change with the applied transformation to
-  the SPN\@.
-\end{proof}
-
-\begin{theorem} The derivatives given in \autoref{def:sumdiff} and \autoref{def:productdiff}
-  hold for any SPN structure.
-\end{theorem}
-\begin{proof}
-  Let $S$ be an SPN\@. For each node $S_i$ in $S$, if $\Pa(S_i)$ are all of different types than
-  $S_i$, the claim is trivially true. Else, if $S_i$ is a sum node, we know from
-  \autoref{lemma:diffsum} that the derivative is equal to \autoref{def:sumdiff}; and if $S_i$ is a
-  product, from \autoref{lemma:diffproduct} we have that the derivative is the same as
-  \autoref{def:productdiff}.
-\end{proof}
-
-\begin{definition}[Weight derivative]
-  Let $S$ be an SPN and $S_i$ a sum node of $S$. Let $W=\{w_{i,1},w_{i,2},\ldots,w_{i,n}\}$ be the
-  set of edge weights, where $w_{i,j}$ is the weight of an edge going from node $S_i$ to $S_j$. The
-  weight derivative of $S$ wrt $w_{i,j}$ is given by
-  \begin{equation*}
-    \frac{\partial S}{\partial w_{i,j}}(x) = \frac{\partial S}{\partial S_i}(x) S_j(x)
-  \end{equation*}
-\end{definition}
-
-The weight derivative $\partial S/\partial w_{i,j}$ computes the gradient descent variation on
-weight $w_{i,j}$. We wish to compute the likelihood gradient and optimize (i.e.\ maximize) it with
-gradient descent, meaning we wish to ``follow'' the gradient direction:
-
-\begin{equation}
-  \Delta w_{i,j}=\eta\frac{\partial S}{\partial w_{i,j}}(x)=\eta\left(\frac{\partial S}{\partial
-    S_i}(x)S_j(x)\right)
-  \label{eq:gradient-update}
-\end{equation}
-
-\autoref{eq:gradient-update} shows the gradient update on a weight $w_{i,j}$, where $\eta$ is the
-learning rate. The weight derivative depends on the derivative of the node in question, which in
-turn depends on the derivative of its parents. It also needs the marginal values of each of the
-node's children as well.
-
-A way to compute the derivatives of each node is shown in~\cite{dspn-talk}. We follow this
-backpropagation algorithm in this document. Instead of computing the derivatives of a node $S_i$ by
-finding the necessary values from its parents first and then computing $\partial S/\partial S_i$,
-in a clear bottom-up approach, we perform a top-down computation on the SPN\@. At each node $S_i$,
-we add the element of the sum of derivatives concerning $S_i$ to the variable that stores the
-derivative of the $\partial S/\partial S_j$, where $S_j\in\Ch(S_i)$. That is, we follow the
-following algorithm:
-
-\begin{enumerate}[label=\arabic*.]
-  \item Select an unvisited node $S_i$ in SPN $S$:
-  \item For each child $S_j$ of $S_i$:
-    \begin{enumerate}[label*=\arabic*.]
-      \item If $S_i$ is a sum node:
-        \begin{enumerate}[label*=\arabic*.]
-          \item $\ddspn{S}{S_j}\gets\ddspn{S}{S_j}+w_{i,j}\ddspn{S}{S_i}(x)$
-          \item $\ddspn{S}{w_{i,j}}\gets S_j(x)\ddspn{S}{S_i}(x)$
-        \end{enumerate}
-      \item Else if $S_i$ is a product node:
-        \begin{enumerate}[label*=\arabic*]
-          \item $\ddspn{S}{S_j}\gets\ddspn{S}{S_j}+\ddspn{S}{S_i}(x)\prod_{S_k\in\Ch_{-S_j}(S_i)}
-            S_k(x)$
-        \end{enumerate}
-    \end{enumerate}
-\end{enumerate}
-
-In this top-down algorithm, we need only to have the marginal values pre-computed before finding
-the derivatives. So in order for us to compute the derivative $\partial S/\partial S_i(x)$ for a
-certain node $S_i$, we need to have all the marginals of its dependencies (i.e.\
-its ancestors) already computed and stored somewhere. The algorithm for storing the marginal values
-is simply. Topologically sort the graph of $S$ and for each node compute its marginal value and
-store it into a dynamic programming (DP) table. The topological order guarantees that all
-dependencies will be met, since there are no cycles. For computing the derivatives, we perform a
-breadth-first search (BFS) on the graph and at each node we compute the values described in the
-algorithm above, storing $\iddspn{S}{S_j}$ and $\iddspn{S}{w_{i,j}}$ in a DP matrix. Once we have
-all values, we can apply the gradient update at each node. We do this once again by performing a
-BFS, where at each node $S_i$, we apply to the weight $w_{i,j}$ the weight update $\Delta w_{i,j}$
-described in \autoref{eq:gradient-update}.
-
-The implementation of the derivation algorithms can be found at~\cite{gospn} under the file
-\code{learn/derive.go}. File \code{learn/generative.go} shows an implementation of the generative
-gradient update.
-
-\subsection{Expectation-maximization}
+This document was funded by CNPq, grant \#800585/2016--0.
 
 %--------------------------------------------------------------------------------------------------
 
